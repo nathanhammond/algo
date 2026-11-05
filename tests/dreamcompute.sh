@@ -49,8 +49,19 @@ import sys, openstack
 sys.exit(0 if openstack.connect().compute.find_server(sys.argv[1]) else 1)' "$1") 2>/dev/null
 }
 
+# save_console : keeps the server's console log (boot and cloud-init output) for diagnosis
+save_console() {
+  (cd "$REPO" && uv run python -I -c '
+import sys, openstack
+c = openstack.connect()
+s = c.compute.find_server(sys.argv[1])
+print(c.compute.get_server_console_output(s)["output"] if s else "no server")' "$NAME") >"$WORK/$TAG-console.log" 2>/dev/null
+  echo "Console log saved to $WORK/$TAG-console.log"
+}
+
 cleanup() {
   client_down "${CLIENTS[@]}"
+  [ "$FAIL" -gt 0 ] && server_exists "$NAME" && save_console
   if [ "$KEEP" = false ] && server_exists "$NAME"; then
     log "Destroying $NAME"
     (cd "$REPO" && ./algo destroy "${DESTROY_ARGS[@]}") </dev/null >"$WORK/$TAG-destroy.log" 2>&1
