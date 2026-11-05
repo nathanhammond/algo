@@ -1,6 +1,10 @@
 [Interface]
 Address = {{ wireguard_server_ip }}
 ListenPort = {{ wireguard_port_actual if wireguard_port | int == wireguard_port_avoid | int else wireguard_port }}
+# WireGuard's usual MTU, the most a client takes. Otherwise wg-quick derives it from
+# the public interface (8820 with DreamCompute's jumbo frames), and packets that fit
+# wg0 but not the client leave as oversized tunnel packets that fragment on the way.
+MTU = {{ 1420 - reduce_mtu | int }}
 PrivateKey = {{ lookup('file', wireguard_pki_path + '/private/' + IP_subject_alt_name) }}
 SaveConfig = false
 
