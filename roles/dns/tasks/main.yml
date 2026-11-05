@@ -11,6 +11,14 @@
   notify:
     - restart dnscrypt-proxy
 
+- name: dnscrypt-proxy custom DNS records configured
+  template:
+    src: cloaking-rules.txt.j2
+    dest: "{{ config_prefix | default('/') }}etc/dnscrypt-proxy/cloaking-rules.txt"
+    mode: '0644'
+  notify:
+    - restart dnscrypt-proxy
+
 - name: dnscrypt-proxy configured
   template:
     src: dnscrypt-proxy.toml.j2

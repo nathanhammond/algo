@@ -1,0 +1,4 @@
+# Custom DNS records from dns_records in config.cfg. "=" means exact match only.
+{% for name, ip in (dns_records | default({})).items() %}
+={{ name }} {{ ip }}
+{% endfor %}

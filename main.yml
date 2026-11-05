@@ -2,6 +2,8 @@
 - name: Algo VPN Setup
   hosts: localhost
   become: false
+  vars_files:
+    - config.cfg
   tasks:
     - name: Playbook dir stat
       stat:
@@ -59,6 +61,11 @@
           Ansible version is {{ current_ansible_version }}.
           You must update the requirements to use this version of Algo.
           Try to run: uv sync
+
+    - name: Verify the custom DNS records
+      assert:
+        that: (dns_records | default({})).values() | reject('ansible.utils.ip_address') | list | length == 0
+        msg: "Every value under dns_records in config.cfg must be an IPv4 or IPv6 address"
 
     - name: Check for the WireGuard tools
       command: wg --version
