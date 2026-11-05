@@ -64,23 +64,37 @@
     that: public_network is not none
     msg: No active external network was found in this OpenStack project.
 
-- name: Server created
-  openstack.cloud.server:
-    state: "{{ state | default('present') }}"
+- name: Look up an existing server
+  openstack.cloud.server_info:
     name: "{{ algo_server_name }}"
-    image: "{{ image_id }}"
-    flavor: "{{ flavor_id }}"
-    security_groups: "{{ os_security_group.security_group.name }}"
-    userdata: "{{ lookup('template', 'files/cloud-init/base.yml') }}"
-    nics:
-      - net-id: "{{ public_network.id }}"
-    # DreamCompute attaches servers directly to the public network
-    auto_ip: false
+  register: os_existing_server
+
+# DreamCompute's Nova predates API microversion 2.52 and rejects the tags field.
+# openstack.cloud.server always sends tags (it rejects null and defaults to []),
+# so create the server through openstacksdk directly; resource sends only the
+# attributes listed here. Existing servers are found above and left as they are.
+- name: Server created
+  openstack.cloud.resource:
+    service: compute
+    type: server
+    attributes:
+      name: "{{ algo_server_name }}"
+      image_id: "{{ image_id }}"
+      flavor_id: "{{ flavor_id }}"
+      security_groups:
+        - name: "{{ os_security_group.security_group.name }}"
+      user_data: "{{ lookup('template', 'files/cloud-init/base.yml') | b64encode }}"
+      # DreamCompute attaches servers directly to the public network
+      networks:
+        - uuid: "{{ public_network.id }}"
+    wait: true
   register: os_server
+  when: os_existing_server.servers | length == 0
 
 - set_fact:
     cloud_instance_ip: >-
-      {{ os_server.server.addresses[public_network.name] | selectattr('version', '==', 4) | map(attribute='addr') | first }}
+      {{ (os_existing_server.servers[0] if os_server is skipped else os_server.resource).addresses[public_network.name]
+         | selectattr('version', '==', 4) | map(attribute='addr') | first }}
     ansible_ssh_user: algo
     ansible_ssh_port: "{{ ssh_port }}"
     cloudinit: true
