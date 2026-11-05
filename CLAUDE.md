@@ -102,11 +102,11 @@ loop: "{{ users + [server_name] }}"
 Never include trailing slashes - causes double-slash bugs:
 
 ```yaml
-# WRONG - creates paths like /etc/ipsec.d//private
-ipsec_path: "configs/{{ server }}/ipsec/"
+# WRONG - creates paths like configs/1.2.3.4/wireguard//.pki
+wireguard_config_path: "configs/{{ server }}/wireguard/"
 
 # CORRECT
-ipsec_path: "configs/{{ server }}/ipsec"
+wireguard_config_path: "configs/{{ server }}/wireguard"
 ```
 
 ### ignore_errors vs failed_when
@@ -194,13 +194,13 @@ that: my_ip is ansible.utils.ipv4_address
 
 ## DNS Architecture
 
-Algo uses a randomly generated IP in 172.16.0.0/12 on the loopback interface (`local_service_ip`) for DNS. This provides consistency across WireGuard and IPsec but requires understanding systemd socket activation.
+Algo uses a randomly generated IP in 172.16.0.0/12 on the loopback interface (`local_service_ip`) for DNS. It requires understanding systemd socket activation.
 
 ### Why This Design
 
-- Consistent DNS IP across both VPN protocols
+- The DNS address clients use never changes for a server
 - Survives interface changes and restarts
-- Works identically across all cloud providers
+- Not tied to the cloud's network setup
 - Trade-off: Requires `route_localnet=1` sysctl
 
 ### systemd Socket Activation
@@ -267,10 +267,9 @@ Lessons learned - don't spend time on these unless absolutely necessary:
 1. **Converting MASQUERADE to SNAT** - MASQUERADE works fine for Algo's use case
 2. **Fighting systemd socket activation** - Configure it properly instead of disabling
 3. **Debugging NAT before checking DNS** - Most "routing" issues are DNS issues
-4. **Complex IPsec policy matching** - Keep NAT rules simple
-5. **Testing on existing servers** - Always test on fresh deployments
-6. **Interface-specific route_localnet** - WireGuard interface doesn't exist until service starts
-7. **DNAT for loopback addresses** - Packets to local IPs don't traverse PREROUTING
+4. **Testing on existing servers** - Always test on fresh deployments
+5. **Interface-specific route_localnet** - WireGuard interface doesn't exist until service starts
+6. **DNAT for loopback addresses** - Packets to local IPs don't traverse PREROUTING
 
 ## What to Avoid
 

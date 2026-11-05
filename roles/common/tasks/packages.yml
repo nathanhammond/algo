@@ -9,7 +9,6 @@
     algo_packages: "{{ algo_packages + ['wireguard'] }}"
   when:
     - performance_parallel_packages | default(true)
-    - wireguard_enabled | default(true)
 
 - name: Add DNS packages
   set_fact:

@@ -12,7 +12,6 @@
 
 # Filter network interface up/down messages for VPN interfaces
 :msg, regex, "wg[0-9]+.*link" stop
-:msg, regex, "ipsec[0-9]+.*link" stop
 
 # Filter routing table changes
 :msg, contains, "rtnetlink" stop

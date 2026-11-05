@@ -18,7 +18,7 @@ This Ansible role implements additional privacy enhancements for Algo VPN to min
 
 ### 3. VPN Log Filtering
 - Filters out VPN connection logs from rsyslog
-- Excludes WireGuard and StrongSwan messages from persistent storage
+- Excludes WireGuard messages from persistent storage
 - Filters kernel messages related to VPN traffic
 - Optional filtering of authentication logs (use with caution)
 

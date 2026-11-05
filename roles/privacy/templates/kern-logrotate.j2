@@ -22,7 +22,7 @@
     prerotate
         # Create filtered version excluding VPN traces
         if [ -f /var/log/kern.log ]; then
-            grep -v -E "(wireguard|ipsec|strongswan|xl2tpd)" /var/log/kern.log > /tmp/kern.log.filtered || true
+            grep -v -E "wireguard" /var/log/kern.log > /tmp/kern.log.filtered || true
             if [ -s /tmp/kern.log.filtered ]; then
                 mv /tmp/kern.log.filtered /var/log/kern.log
             fi

@@ -9,15 +9,8 @@
 # Filter WireGuard messages
 :msg, contains, "wireguard" stop
 
-# Filter StrongSwan/IPsec messages
-:msg, contains, "strongswan" stop
-:msg, contains, "ipsec" stop
-:msg, contains, "charon" stop
-:msg, contains, "xl2tpd" stop
-
 # Filter VPN interface messages
 :msg, contains, "wg0" stop
-:msg, contains, "ipsec0" stop
 
 # Filter VPN-related kernel messages
 :msg, regex, "IN=wg[0-9]+" stop
