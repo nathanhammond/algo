@@ -1,13 +1,17 @@
 *.retry
 .idea/
 configs/*
-inventory_users
 *.kate-swp
 .env/
 .venv/
 .DS_Store
-.vagrant
 .ansible/
 __pycache__/
 *.pyc
 algo.egg-info/
+
+# OpenStack credentials: the openrc file from the DreamCompute dashboard
+# (Project > API Access) and openstacksdk's clouds.yaml / secure.yaml
+*-openrc.sh
+clouds.yaml
+secure.yaml
