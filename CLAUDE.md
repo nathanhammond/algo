@@ -258,6 +258,8 @@ For comprehensive diagnostics, see [docs/troubleshooting.md](docs/troubleshootin
   `dnscrypt-proxy-resolvconf` is masked so the server keeps resolving through systemd-resolved.
 - **rsyslog**: Ubuntu's `/etc/rsyslog.conf` already loads imuxsock and imklog; loading them again
   in `rsyslog.d` makes `rsyslogd -N1` fail on the next run.
+- **Sysctls** go in files under `/etc/sysctl.d/` (`sysctl_file:`). Ubuntu 26.04 no longer
+  applies `/etc/sysctl.conf` at boot, the `sysctl` module's default.
 - **Privacy role** needs `cron` on the server; keep it in the common role's package list.
 
 ## Time Wasters to Avoid

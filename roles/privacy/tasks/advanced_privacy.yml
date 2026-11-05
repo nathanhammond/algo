@@ -5,23 +5,12 @@
   sysctl:
     name: "{{ item.name }}"
     value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-privacy.conf
     state: present
-    reload: yes
+    reload: true
   loop:
     - { name: 'kernel.printk', value: '3 4 1 3' }
     - { name: 'kernel.dmesg_restrict', value: '1' }
-  when: privacy_advanced.reduce_kernel_verbosity | bool
-
-- name: Configure kernel parameters for privacy
-  lineinfile:
-    path: /etc/sysctl.d/99-privacy.conf
-    line: "{{ item }}"
-    create: yes
-    mode: '0644'
-  loop:
-    - "# Privacy enhancements - reduce kernel logging"
-    - "kernel.printk = 3 4 1 3"
-    - "kernel.dmesg_restrict = 1"
   when: privacy_advanced.reduce_kernel_verbosity | bool
 
 - name: Configure journal settings for privacy

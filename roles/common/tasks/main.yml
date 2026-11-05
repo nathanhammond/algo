@@ -7,8 +7,13 @@
     - always
     - update-users
 
+# Not /etc/sysctl.conf (the module's default): Ubuntu 26.04 no longer applies it at
+# boot, so forwarding and the other settings would be lost on every reboot.
 - name: Sysctl tuning
-  sysctl: name="{{ item.item }}" value="{{ item.value }}"
+  sysctl:
+    name: "{{ item.item }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-algo.conf
   when: item.item is defined and item.item != none
   loop: "{{ sysctl | default([]) }}"
   tags:
