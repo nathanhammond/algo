@@ -32,6 +32,14 @@ users:
     ssh_authorized_keys:
       - "{{ lookup('file', SSH_keys.public) | string }}"
 
+# The host key made by the deploy, so its first connection can verify the server
+ssh_deletekeys: true
+ssh_genkeytypes: []
+ssh_keys:
+  ed25519_private: |
+{{ ssh_host_key.private | indent(width=4, first=True) }}
+  ed25519_public: {{ ssh_host_key.public }}
+
 write_files:
   - path: /etc/ssh/sshd_config
     content: |

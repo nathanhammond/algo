@@ -107,8 +107,13 @@ an upstream deployment (including `algo.pem`) works here too.
 ## SSH into the server
 
 ```bash
-ssh -i configs/algo.pem -p 4160 algo@<server-ip>
+ssh -i configs/algo.pem -p 4160 -o UserKnownHostsFile=configs/<server-ip>/known_hosts algo@<server-ip>
 ```
+
+`configs/<server-ip>/known_hosts` holds the server's SSH host key, and every run checks it. A new
+DreamCompute server's key is made by the deploy and saved before the server boots. For other
+servers the first run saves the key it is shown. If you rebuild a server at the same address,
+delete that file so the next run saves the new key.
 
 ## Destroy
 

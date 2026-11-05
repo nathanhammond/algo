@@ -3,6 +3,30 @@
   set_fact:
     IP_subject_alt_name: "{{ (IP_subject_alt_name if algo_provider == 'local' else cloud_instance_ip) | lower }}"
 
+- name: Ensure the config directory exists
+  file:
+    path: configs/{{ IP_subject_alt_name }}
+    state: directory
+    mode: "0700"
+  when: cloud_instance_ip != 'localhost'
+
+- name: Look for the server's saved SSH host key
+  stat:
+    path: configs/{{ IP_subject_alt_name }}/known_hosts
+  register: _known_hosts
+
+# New DreamCompute servers have their key saved before they boot. Otherwise
+# (provider: local, or a server deployed before keys were saved) the first
+# connection trusts the key it is shown and saves it; later ones must match.
+- name: Note that the server's SSH host key is not known yet
+  debug:
+    msg: >-
+      No SSH host key is saved for {{ IP_subject_alt_name }}, so this run trusts the key the server
+      presents and saves it to configs/{{ IP_subject_alt_name }}/known_hosts. Later runs must match it.
+  when:
+    - cloud_instance_ip != 'localhost'
+    - not _known_hosts.stat.exists
+
 - name: Add the server to an inventory group
   add_host:
     name: "{% if cloud_instance_ip == 'localhost' %}localhost{% else %}{{ cloud_instance_ip }}{% endif %}"
@@ -16,6 +40,9 @@
     algo_dns_adblocking: "{{ algo_dns_adblocking }}"
     IP_subject_alt_name: "{{ IP_subject_alt_name }}"
     cloudinit: "{{ cloudinit | default(false) }}"
+    ansible_ssh_common_args: >-
+      -o UserKnownHostsFile={{ playbook_dir }}/configs/{{ IP_subject_alt_name }}/known_hosts
+      -o StrictHostKeyChecking={{ 'yes' if _known_hosts.stat.exists else 'accept-new' }}
 
 - name: Additional variables for the server
   add_host:

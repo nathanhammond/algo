@@ -241,6 +241,10 @@ For comprehensive diagnostics, see [docs/troubleshooting.md](docs/troubleshootin
   is only appended to, so addresses never shift.
 - **`creates:` with `chdir:`**: the shell/command modules evaluate `creates` after changing
   directory. A relative path there must be relative to `chdir`, or every run regenerates keys.
+- **SSH host keys** are checked against `configs/<ip>/known_hosts`. New DreamCompute servers get
+  a host key made on the controller and passed in user-data (so that task is `no_log`); other
+  servers use `StrictHostKeyChecking=accept-new` on first contact. Never set
+  `UserKnownHostsFile` in `ansible.cfg`'s `ssh_args`: OpenSSH uses the first value given.
 - **Facts**: `inject_facts_as_vars = False`; read facts from `ansible_facts['...']`.
 - **Ubuntu 24.04+ SSH** is socket-activated. Changing the port needs `systemctl daemon-reload`
   and `systemctl restart ssh.socket`; `files/cloud-init/base.yml` does this.
