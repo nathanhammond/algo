@@ -262,6 +262,10 @@ For comprehensive diagnostics, see [docs/troubleshooting.md](docs/troubleshootin
   in `rsyslog.d` makes `rsyslogd -N1` fail on the next run.
 - **Sysctls** go in files under `/etc/sysctl.d/` (`sysctl_file:`). Ubuntu 26.04 no longer
   applies `/etc/sysctl.conf` at boot, the `sysctl` module's default.
+- **journald**: Ubuntu's `/usr/lib/systemd/journald.conf.d/syslog.conf` sets
+  `ForwardToSyslog=yes`, and drop-ins override `/etc/systemd/journald.conf`, so the privacy
+  role's `ForwardToSyslog=no` has no effect. rsyslog therefore still receives logs, which is
+  why auth.log keeps SSH logins.
 - **Privacy role** needs `cron` on the server; keep it in the common role's package list.
 
 ## Time Wasters to Avoid
