@@ -83,9 +83,8 @@ exclude = ["library/**", "tests/**"]
 unresolved-import = "ignore"
 unknown-argument = "warn"
 
-[tool.uv]
-# Centralized uv version management
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest>=9.2.0",
     "pytest-xdist>=3.8.0",  # Parallel test execution
     "ruff>=0.17.3",         # Python linter and formatter
