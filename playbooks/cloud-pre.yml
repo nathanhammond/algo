@@ -12,13 +12,4 @@
         path: "{{ SSH_keys.public }}"
         privatekey_path: "{{ SSH_keys.private }}"
         format: OpenSSH
-
-    - name: Copy the private SSH key to /tmp
-      copy:
-        src: "{{ SSH_keys.private }}"
-        dest: "{{ SSH_keys.private_tmp }}"
-        force: true
-        mode: "0600"
-      delegate_to: localhost
-      become: false
   when: algo_provider != "local"
