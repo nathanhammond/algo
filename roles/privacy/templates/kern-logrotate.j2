@@ -20,12 +20,16 @@
 
     # Pre-rotation script to filter VPN-related entries
     prerotate
-        # Create filtered version excluding VPN traces
+        # Remove VPN traces. The filtered copy is written back in place so the
+        # file keeps its owner and mode and rsyslog keeps writing to it.
         if [ -f /var/log/kern.log ]; then
-            grep -v -E "wireguard" /var/log/kern.log > /tmp/kern.log.filtered || true
-            if [ -s /tmp/kern.log.filtered ]; then
-                mv /tmp/kern.log.filtered /var/log/kern.log
+            tmp=$(mktemp /var/log/kern.log.XXXXXX) || exit 0
+            grep -v -E "wireguard" /var/log/kern.log > "$tmp"
+            # grep exits 1 when every line matched; 2 is an error
+            if [ $? -le 1 ]; then
+                cat "$tmp" > /var/log/kern.log
             fi
+            rm -f "$tmp"
         fi
     endscript
 
