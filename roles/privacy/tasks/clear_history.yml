@@ -27,22 +27,22 @@
   when: privacy_history_clearing.clear_system_history | bool
   failed_when: false
 
+# blockinfile, not lineinfile: a multi-line "line" never matches, so lineinfile
+# appended another copy on every run.
 - name: Configure bash to not save history for service users
-  lineinfile:
+  blockinfile:
     path: "{{ item }}/.bashrc"
-    line: "{{ history_disable_line }}"
+    marker: "# {mark} ALGO: disable bash history"
+    block: |
+      export HISTFILE=/dev/null
+      export HISTSIZE=0
+      export HISTFILESIZE=0
+      unset HISTFILE
     create: true
     mode: '0644'
   loop:
     - /root
     - /home/ubuntu
-  vars:
-    history_disable_line: |
-      # Privacy enhancement: disable bash history
-      export HISTFILE=/dev/null
-      export HISTSIZE=0
-      export HISTFILESIZE=0
-      unset HISTFILE
   when: privacy_history_clearing.disable_service_history | bool
   failed_when: false
 
