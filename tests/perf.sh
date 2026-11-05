@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Measures what limits VPN performance on a deployed server, and whether a change would help.
 #
-# Usage: tests/perf.sh <server-ip> <client-config> [--name SERVER_NAME] [--runs N] [--site URL]
+# Usage: tests/perf.sh <server-ip> <client-config> [--name SERVER_NAME] [--runs N] [--site URL] [--idle]
 #
 # <client-config> is a WireGuard client config for that server. Use one no device
 # is connected with at the same time (a test user): two clients sharing a key keep
@@ -14,6 +14,9 @@
 # --name and OpenStack credentials loaded, they include the OpenStack host ID, which
 # changes when a server lands on different hardware.
 #
+# --idle adds about three minutes: it measures the first packet after the tunnel
+# has been idle long enough for WireGuard to need a new handshake.
+#
 # Environment: SSH_HOST (default: the server IP), SSH_PORT (default: config.cfg),
 # SSH_KEY (default: configs/algo.pem).
 set -uo pipefail
@@ -22,11 +25,12 @@ set -uo pipefail
 
 [ $# -ge 2 ] || { sed -n '3,4p' "$0" | sed 's/^# //' >&2; exit 2; }
 IP=$1; CONF=$2; shift 2
-NAME=""; RUNS=3; SITE=https://www.youtube.com/
+NAME=""; RUNS=3; SITE=https://www.youtube.com/; IDLE=false
 while [ $# -gt 0 ]; do
   case $1 in
     --name) NAME=$2; shift 2 ;;
     --site) SITE=$2; shift 2 ;;
+    --idle) IDLE=true; shift ;;
     --runs) RUNS=$2; shift 2 ;;
     *) echo "Unknown option $1" >&2; exit 2 ;;
   esac
@@ -55,6 +59,8 @@ kv() { printf '  %-34s %s\n' "$1" "$2"; }
 # ping_avg CONTAINER HOST : average round trip in ms
 ping_avg() { docker exec "$1" ping -c 20 -i 0.2 -W 2 "$2" 2>/dev/null | awk -F/ '/^rtt|^round-trip/ {print $5}'; }
 ping_mdev() { docker exec "$1" ping -c 20 -i 0.2 -W 2 "$2" 2>/dev/null | awk -F/ '/^rtt|^round-trip/ {sub(/ ms/, "", $7); print $7}'; }
+# ping_loss CONTAINER HOST : packet loss over 100 pings, as "N%"
+ping_loss() { docker exec "$1" ping -c 100 -i 0.05 -W 2 "$2" 2>/dev/null | awk '/packet loss/ {for (i = 1; i <= NF; i++) if ($i ~ /%$/) print $i}'; }
 # download CONTAINER : bytes per second
 download() { docker exec "$1" curl -s -m 60 -o /dev/null -w '%{speed_download}' "$DL_URL"; }
 upload() { docker exec "$1" sh -c "head -c 10000000 /dev/zero | curl -s -m 60 -o /dev/null -w '%{speed_upload}' --data-binary @- '$UP_URL'"; }
@@ -170,11 +176,16 @@ rtt_server_inet=$(ssh_server ping -c 10 -i 0.2 -W 2 1.1.1.1 2>/dev/null | awk -F
 kv "To the server (outside the tunnel)" "${rtt_server:-?} ms (jitter ${jitter:-?} ms)"
 kv "To the server through the tunnel" "${rtt_tunnel:-?} ms"
 kv "To 1.1.1.1: direct / tunnel / server" "${rtt_inet_direct:-?} / ${rtt_inet_tunnel:-?} / ${rtt_server_inet:-?} ms"
+loss_server=$(ping_loss $OUT "$IP"); loss_tunnel=$(ping_loss $IN "$WG_SERVER")
+kv "Packet loss to the server: direct / tunnel" "$loss_server / $loss_tunnel (100 pings)"
 overhead=$(calc "${rtt_tunnel:-0} - ${rtt_server:-0}" 1)
 if awk "BEGIN {exit !($overhead > 10)}"; then
   verdict CHANGE "The tunnel adds $overhead ms over the plain path: look at server CPU (below) and packet drops."
 else
   verdict OK "The tunnel adds $overhead ms to the path itself."
+fi
+if awk "BEGIN {exit !(${loss_tunnel%\%} >= 1)}"; then
+  verdict NOTE "Loss through the tunnel is $loss_tunnel. At this distance even 1% loss sharply limits TCP throughput; compare with the direct figure to see whether the path or the VPN loses packets."
 fi
 if awk "BEGIN {exit !(${rtt_server:-0} > 100)}"; then
   verdict NOTE "The server is ${rtt_server} ms away. Every new connection and uncached DNS lookup pays this; only a closer region would reduce it."
@@ -187,12 +198,14 @@ before=$(cpu_sample)
 t=(); for _ in $(seq "$RUNS"); do t+=("$(download $IN)"); done
 after=$(cpu_sample)
 u=(); for _ in $(seq "$RUNS"); do u+=("$(upload $IN)"); done
+du=(); for _ in $(seq "$RUNS"); do du+=("$(upload $OUT)"); done
 read -r direct_mean direct_cv <<<"$(stats "${d[@]}")"
 read -r server_mean _ <<<"$(stats "${s[@]}")"
 read -r tunnel_mean tunnel_cv <<<"$(stats "${t[@]}")"
 read -r up_mean _ <<<"$(stats "${u[@]}")"
+read -r dup_mean _ <<<"$(stats "${du[@]}")"
 read -r load_busy load_softirq load_steal <<<"$(cpu_delta "$before" "$after")"
-kv "This computer, direct" "$(mbps "$direct_mean") Mbit/s (variation $direct_cv%)"
+kv "This computer, direct" "$(mbps "$direct_mean") Mbit/s down (variation $direct_cv%), $(mbps "$dup_mean") Mbit/s up"
 kv "The server, direct" "$(mbps "$server_mean") Mbit/s"
 kv "Through the tunnel, download" "$(mbps "$tunnel_mean") Mbit/s (variation $tunnel_cv%)"
 kv "Through the tunnel, upload" "$(mbps "$up_mean") Mbit/s"
@@ -208,6 +221,10 @@ elif [ "$ratio" -lt 70 ]; then
   verdict NOTE "The tunnel reaches $ratio% of the slower direct path without a busy CPU: the client-to-server path is the limit (distance, packet loss or MTU; see below)."
 else
   verdict OK "The tunnel runs near the speed of the slower direct path; the network, not the VPN, is the limit."
+fi
+up_ratio=$(calc "100 * $up_mean / ($dup_mean > 0 ? $dup_mean : 1)" 0)
+if [ "$up_ratio" -lt 70 ]; then
+  verdict NOTE "Upload through the tunnel is $up_ratio% of this computer's direct upload."
 fi
 if awk "BEGIN {exit !($bench_mean * 8 < 2 * $tunnel_mean * 8)}"; then
   verdict NOTE "Encryption capacity ($(mbps "$bench_mean") Mbit/s in user space) is under twice the measured throughput."
@@ -318,6 +335,22 @@ kv "Phase (ms)" "$(printf '%7s %7s %7s %7s %7s' dns connect tls ttfb total)"
 kv "Direct ($pd_n loads)" "$(printf '%7s %7s %7s %7s %7s' "$pd_dns" "$pd_tcp" "$pd_tls" "$pd_ttfb" "$pd_total")"
 kv "Through the tunnel ($pt_n loads)" "$(printf '%7s %7s %7s %7s %7s' "$pt_dns" "$pt_tcp" "$pt_tls" "$pt_ttfb" "$pt_total")"
 verdict NOTE "This times the page's HTML request, not a browser loading every image and script; each extra connection a page opens costs about another connect + tls."
+
+if [ "$IDLE" = true ]; then
+  section "First packet after idle"
+  ka=$(sed -n 's/^PersistentKeepalive = *//p' "$CONF"); ka=${ka:-0}
+  # WireGuard drops session keys after 180 s without traffic (REJECT_AFTER_TIME)
+  sleep 185
+  first=$(docker exec $IN ping -c 1 -W 5 "$WG_SERVER" | sed -n 's/.*time=\([0-9.]*\).*/\1/p')
+  second=$(docker exec $IN ping -c 1 -W 5 "$WG_SERVER" | sed -n 's/.*time=\([0-9.]*\).*/\1/p')
+  kv "PersistentKeepalive" "$ka"
+  kv "First / second ping after 185 s idle" "${first:-lost} / ${second:-lost} ms"
+  if [ "$ka" = 0 ] && awk "BEGIN {exit !(${first:-0} > ${second:-0} * 1.5)}"; then
+    verdict NOTE "After 3 minutes idle, the first packet waited for a new handshake (+$(calc "${first:-0} - ${second:-0}" 0) ms). wireguard_PersistentKeepalive: 25 avoids this, at the cost of a small packet every 25 s from each device (some battery on phones)."
+  else
+    verdict OK "No handshake delay after idle."
+  fi
+fi
 
 section "Server network settings"
 read -r ct_count ct_max <<<"$(ni conntrack)"

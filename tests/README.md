@@ -50,7 +50,7 @@ server holds that record it is removed with it, which needs the Cloudflare token
 ## Performance
 
 ```bash
-tests/perf.sh <server-ip> configs/<server-ip>/wireguard/<user>.conf --name <server-name> [--site URL]
+tests/perf.sh <server-ip> configs/<server-ip>/wireguard/<user>.conf --name <server-name> [--site URL] [--idle]
 ```
 
 Use a client config that no device is connected with at the same time. Disconnect any VPN on
@@ -65,8 +65,11 @@ The script measures:
 
 - the server's hardware, CPU steal time and encryption speed, to show noisy neighbours or
   different hardware;
-- latency, and throughput split into this computer's direct path, the server's direct path and
-  the tunnel, with the server's CPU load;
+- latency and packet loss, and throughput (down and up) split into this computer's direct path,
+  the server's direct path and the tunnel, with the server's CPU load;
+- how long a page (`--site`, default youtube.com) takes to load directly and through the tunnel,
+  by phase;
+- with `--idle`, whether the first packet after three idle minutes waits for a new handshake;
 - the MTU of the path and the tunnel;
 - DNS latency, and whether DNS over TCP works;
 - connection tracking, packet drops and NIC settings.
