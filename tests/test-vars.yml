@@ -1,0 +1,11 @@
+---
+# Settings for test deploys, so they never depend on config.cfg's personal values
+# and never touch DNS records. Passed with -e, so they override config.cfg.
+users:
+  - alpha
+  - beta
+  - gamma
+dns_records:
+  nas.example.test: 192.0.2.10
+endpoint_hostname: ""
+cloudflare_api_token: ""

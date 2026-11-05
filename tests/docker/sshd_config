@@ -1,0 +1,10 @@
+# Matches files/cloud-init/sshd_config for the settings the tests depend on
+Port 4160
+AllowGroups algo
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+UsePAM yes
+X11Forwarding no
+PrintMotd no
+Subsystem sftp /usr/lib/openssh/sftp-server

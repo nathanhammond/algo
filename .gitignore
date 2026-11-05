@@ -15,3 +15,7 @@ algo.egg-info/
 *-openrc.sh
 clouds.yaml
 secure.yaml
+
+# Test working files and performance results
+tests/.work/
+tests/results/

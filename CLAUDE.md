@@ -41,15 +41,17 @@ Users are added and removed by re-running `./algo`; there is no separate users p
 ### Quality Gates (MANDATORY)
 
 ```bash
-uv run ansible-lint && uv run yamllint . && uvx --from shellcheck-py shellcheck algo
+uv run ansible-lint && uv run yamllint . && uvx --from shellcheck-py shellcheck -x algo tests/*.sh tests/docker/*.sh
 uv run ansible-playbook main.yml --syntax-check
 uv run ansible-playbook destroy.yml --syntax-check
+tests/docker.sh --ubuntu 26.04 && tests/docker.sh --ubuntu 24.04
 ```
 
-There are no unit tests. Verify behavior by deploying to systemd-enabled Ubuntu 26.04 and 24.04 containers
-(`provider=local`) and connecting real WireGuard clients, then re-running the playbook to check
-that keys and addresses are unchanged. The OpenStack path can be exercised with test doubles for
-the openstack.cloud modules that return openstacksdk resource dicts.
+There are no unit tests; behavior is tested end to end (see [tests/README.md](tests/README.md)).
+`tests/docker.sh` deploys to a systemd container and checks connectivity, idempotency, user
+changes and restart survival. Before changing anything DreamCompute-specific (cloud-init,
+the openstack role, AppArmor, reboots), also run `tests/dreamcompute.sh`, which does the same
+on a real server and destroys it. `tests/perf.sh` measures what limits VPN speed on a server.
 
 ### Zero-Tolerance Warning Policy
 

@@ -148,6 +148,13 @@ This replaces the server's firewall rules, so only use it on a server dedicated 
 - **unattended-upgrades** installs security updates automatically and, when one needs it,
   reboots at 21:00 UTC (`unattended_reboot` in `config.cfg`).
 
+## Tests and performance
+
+`tests/docker.sh` and `tests/dreamcompute.sh` deploy a server and check it end to end:
+connectivity through real WireGuard clients, idempotent re-runs, user changes and reboot
+survival. `tests/perf.sh` measures what limits VPN speed on a server and whether a change would
+help. See [tests/README.md](tests/README.md).
+
 ## License
 
 GNU Affero General Public License v3.0; see [LICENSE](LICENSE).
