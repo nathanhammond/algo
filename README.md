@@ -24,12 +24,26 @@ users:
 provider: openstack
 server_name: vpn
 
+endpoint_hostname: vpn.example.com
+
 dns_records:
   nas.example.com: 192.168.1.10
 ```
 
-`provider: openstack` skips the provider prompt. `dns_records` is optional: VPN clients that look
-up exactly that name get that address, and subdomains are not matched.
+`provider: openstack` skips the provider prompt. The other two settings are optional:
+
+- `endpoint_hostname`: client configs connect to this name instead of the server's IP address.
+  Point its DNS A record at the server. Each run reports whether the name resolves to that
+  server.
+- `dns_records`: VPN clients that look up exactly that name get that address, and subdomains are
+  not matched.
+
+## Switch to another server
+
+With `endpoint_hostname` set, deploy the new server with a different `server_name`, give each
+device that server's config from `configs/<new-server-ip>/wireguard/`, then change the
+hostname's A record to the new server's IP. Each server has its own keys, so a device keeps
+using its old server until it has the new server's config.
 
 ## Deploy
 

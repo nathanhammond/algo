@@ -64,6 +64,32 @@
         mode: "0600"
       notify: restart wireguard
 
+- name: Look up the endpoint hostname
+  command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - -c
+      - "import socket, sys; print(' '.join(sorted({a[4][0] for a in socket.getaddrinfo(sys.argv[1], None, socket.AF_INET)})))"
+      - "{{ endpoint_hostname }}"
+  register: _endpoint_lookup
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+  become: false
+  when: endpoint_hostname | default('') | length > 0
+
+# Clients use the hostname, so say where it points; changing the DNS record is up to the user.
+- name: Report where the endpoint hostname points
+  debug:
+    msg: >-
+      {{ endpoint_hostname }}
+      {{ 'does not resolve yet. Create a DNS A record for it pointing to ' + IP_subject_alt_name + '.'
+         if _endpoint_lookup.rc != 0 else
+         'points to this server.' if IP_subject_alt_name in _endpoint_lookup.stdout.split() else
+         'points to ' + _endpoint_lookup.stdout + ', not this server. Clients connect there until its A record is changed to '
+         + IP_subject_alt_name + '.' }}
+  when: endpoint_hostname | default('') | length > 0
+
 - name: WireGuard enabled and started
   service:
     name: "{{ service_name }}"

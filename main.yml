@@ -67,6 +67,13 @@
         that: (dns_records | default({})).values() | reject('ansible.utils.ip_address') | list | length == 0
         msg: "Every value under dns_records in config.cfg must be an IPv4 or IPv6 address"
 
+    - name: Verify the endpoint hostname
+      assert:
+        that: >-
+          endpoint_hostname | default('') | length == 0 or
+          endpoint_hostname is match('^(?=.{1,253}$)([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$')
+        msg: "endpoint_hostname in config.cfg must be a DNS name such as vpn.example.com, or empty"
+
     - name: Check for the WireGuard tools
       command: wg --version
       register: _wg_version
