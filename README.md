@@ -136,7 +136,7 @@ This replaces the server's firewall rules, so only use it on a server dedicated 
 - **dnscrypt-proxy** on a private address on `lo` (`local_service_ip`), reachable only through
   the VPN. It forwards to `dnscrypt_servers` over DNSCrypt/DoH, never logs queries, and answers
   `dns_records`.
-- **iptables** (legacy backend) allows only SSH, WireGuard, and ping. It also blocks
+- **iptables** (nftables backend) allows only SSH, WireGuard, and ping. It also blocks
   client-to-client traffic, the cloud metadata service, and SMB/NetBIOS.
 - **Privacy settings:** short log retention, VPN messages filtered from syslog, shell history
   cleared, and daily cleanup.

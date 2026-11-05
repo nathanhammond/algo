@@ -3,7 +3,6 @@
   set_fact:
     is_debian_based: "{{ ansible_facts['distribution'] in ['Debian', 'Ubuntu'] }}"
     uses_systemd_socket: "{{ ansible_facts['distribution'] in ['Debian', 'Ubuntu'] }}"
-    is_ubuntu_22_plus: "{{ ansible_facts['distribution'] == 'Ubuntu' and ansible_facts['distribution_version'] is version('22.04', '>=') }}"
   tags: always
 
 - name: Define facts

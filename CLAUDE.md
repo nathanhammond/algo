@@ -26,7 +26,7 @@ config.cfg          # everything users edit
 roles/
   cloud-openstack/  # security group, flavor/image/network lookup, server, cloud-init
   local/            # existing server: asks for server, ssh_user, endpoint
-  common/           # updates, reboot, sysctl, iptables (legacy backend)
+  common/           # updates, reboot, sysctl, iptables (nftables backend)
   dns/              # dnscrypt-proxy on local_service_ip via systemd socket activation
   wireguard/        # keys via the wg CLI on the controller, wg0.conf, client .conf + QR
   privacy/          # log retention/filtering, history clearing, cleanup

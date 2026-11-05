@@ -123,25 +123,24 @@
   include_tasks: packages.yml
   when: performance_parallel_packages | default(true)
 
-- name: Ubuntu 22.04+ | Use iptables-legacy for compatibility
-  when: is_ubuntu_22_plus
+- name: Install iptables packages
+  apt:
+    name:
+      - iptables
+      - iptables-persistent
+    state: present
+    update_cache: true
   tags: iptables
-  block:
-    - name: Install iptables packages
-      apt:
-        name:
-          - iptables
-          - iptables-persistent
-        state: present
-        update_cache: true
 
-    - name: Configure iptables-legacy as default
-      alternatives:
-        name: "{{ item }}"
-        path: "/usr/sbin/{{ item }}-legacy"
-      loop:
-        - iptables
-        - ip6tables
+# Ubuntu's default backend. iptables-save/restore follow these alternatives.
+- name: Use the nftables backend for iptables
+  alternatives:
+    name: "{{ item }}"
+    path: "/usr/sbin/{{ item }}-nft"
+  loop:
+    - iptables
+    - ip6tables
+  tags: iptables
 
 - include_tasks: iptables.yml
   tags: iptables
