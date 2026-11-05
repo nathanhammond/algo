@@ -7,6 +7,7 @@
       server_name: algo
       dns_adblocking: false
     providers_map:
+      - { name: OpenStack (DreamCompute optimised), alias: openstack }
       - { name: Install to existing Ubuntu latest LTS server (for more advanced users), alias: local }
   vars_files:
     - config.cfg
@@ -28,6 +29,16 @@
         - name: Set facts based on the input
           set_fact:
             algo_provider: "{{ provider | default(providers_map[_algo_provider.user_input | default(omit) | int - 1]['alias']) }}"
+
+        - name: VPN server name prompt
+          pause:
+            prompt: |
+              Name the vpn server
+              [algo]
+          register: _algo_server_name
+          when:
+            - server_name is undefined
+            - algo_provider != "local"
 
         - name: DNS adblocking prompt
           pause:

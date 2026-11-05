@@ -1,0 +1,86 @@
+---
+- fail:
+    msg: >-
+      OpenStack credentials are not set. Download it from the OpenStack dashboard->Compute->API Access
+      and source it in the shell (eg: source /tmp/dhc-openrc.sh)
+  when: lookup('env', 'OS_AUTH_URL')|length <= 0
+
+- name: Security group created
+  openstack.cloud.security_group:
+    state: "{{ state | default('present') }}"
+    name: "{{ algo_server_name }}-security_group"
+    description: AlgoVPN security group
+  register: os_security_group
+
+- name: Security rules created
+  openstack.cloud.security_group_rule:
+    state: "{{ state | default('present') }}"
+    security_group: "{{ os_security_group.security_group.id }}"
+    protocol: "{{ item.proto }}"
+    port_range_min: "{{ item.port_min }}"
+    port_range_max: "{{ item.port_max }}"
+    remote_ip_prefix: "{{ item.range }}"
+  loop:
+    - { proto: tcp, port_min: "{{ ssh_port }}", port_max: "{{ ssh_port }}", range: 0.0.0.0/0 }
+    - { proto: icmp, port_min: -1, port_max: -1, range: 0.0.0.0/0 }
+    - { proto: udp, port_min: "{{ wireguard_port }}", port_max: "{{ wireguard_port }}", range: 0.0.0.0/0 }
+
+- name: Gather facts about flavors
+  openstack.cloud.compute_flavor_info:
+    ram: "{{ cloud_providers.openstack.flavor_ram }}"
+  register: os_flavor
+
+- name: Gather facts about images
+  openstack.cloud.image_info:
+    image: "{{ cloud_providers.openstack.image }}"
+  register: os_image
+
+- name: Gather facts about public networks
+  openstack.cloud.networks_info:
+  register: os_network
+
+# openstack.cloud 2.x returns openstacksdk resources: flavors/images/networks
+# lists with attribute names such as is_router_external.
+- name: Set facts
+  set_fact:
+    flavor_id: "{{ (os_flavor.flavors | sort(attribute='ram') | first | default({})).id | default(none) }}"
+    image_id: "{{ (os_image.images | selectattr('status', '==', 'active') | first | default({})).id | default(none) }}"
+    public_network: >-
+      {{ os_network.networks | selectattr('is_router_external') | selectattr('is_admin_state_up')
+         | selectattr('status', '==', 'ACTIVE') | first | default(none) }}
+
+- name: Verify a flavor matched
+  assert:
+    that: flavor_id is not none
+    msg: "No flavor has RAM {{ cloud_providers.openstack.flavor_ram }}. Change cloud_providers.openstack.flavor_ram in config.cfg."
+
+- name: Verify the image exists
+  assert:
+    that: image_id is not none
+    msg: "No active image is named {{ cloud_providers.openstack.image }}. List images with: openstack image list"
+
+- name: Verify a public network exists
+  assert:
+    that: public_network is not none
+    msg: No active external network was found in this OpenStack project.
+
+- name: Server created
+  openstack.cloud.server:
+    state: "{{ state | default('present') }}"
+    name: "{{ algo_server_name }}"
+    image: "{{ image_id }}"
+    flavor: "{{ flavor_id }}"
+    security_groups: "{{ os_security_group.security_group.name }}"
+    userdata: "{{ lookup('template', 'files/cloud-init/base.yml') }}"
+    nics:
+      - net-id: "{{ public_network.id }}"
+    # DreamCompute attaches servers directly to the public network
+    auto_ip: false
+  register: os_server
+
+- set_fact:
+    cloud_instance_ip: >-
+      {{ os_server.server.addresses[public_network.name] | selectattr('version', '==', 4) | map(attribute='addr') | first }}
+    ansible_ssh_user: algo
+    ansible_ssh_port: "{{ ssh_port }}"
+    cloudinit: true

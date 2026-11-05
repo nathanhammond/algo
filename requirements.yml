@@ -8,3 +8,5 @@ collections:
     version: "==14.0.0"
   - name: community.crypto
     version: ">=3.5.1"
+  - name: openstack.cloud
+    version: "==2.6.0"

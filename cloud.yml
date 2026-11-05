@@ -8,6 +8,9 @@
 
   tasks:
     - block:
+        - name: Local pre-tasks
+          import_tasks: playbooks/cloud-pre.yml
+
         - name: Include a provisioning role
           include_role:
             name: "{{ 'local' if algo_provider == 'local' else 'cloud-' + algo_provider }}"
