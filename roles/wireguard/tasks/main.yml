@@ -29,11 +29,13 @@
         - set_fact:
             wireguard_users: "{{ (lookup('file', wireguard_pki_path + '/index.txt')).split('\n') }}"
 
+        # diff: false keeps private keys out of --diff output
         - name: WireGuard users config generated
           template:
             src: client.conf.j2
             dest: "{{ wireguard_config_path }}/{{ item }}.conf"
             mode: "0600"
+          diff: false
           loop: "{{ wireguard_users }}"
           loop_control:
             index_var: index
@@ -62,6 +64,7 @@
         src: server.conf.j2
         dest: "{{ config_prefix | default('/') }}etc/wireguard/{{ wireguard_interface }}.conf"
         mode: "0600"
+      diff: false
       notify: restart wireguard
 
 - name: Look up the endpoint hostname
