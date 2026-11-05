@@ -1,0 +1,36 @@
+---
+- name: Destroy the DreamCompute server
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    - config.cfg
+  vars:
+    # Same name the server was created with (see input.yml)
+    algo_server_name: "{{ server_name | default('algo') | regex_replace('(?!\\.)(\\W|_)', '-') }}"
+
+  tasks:
+    - block:
+        - name: Display destroy plan
+          debug:
+            msg: "Deleting the server '{{ algo_server_name }}' and its security group. Local configs are kept."
+
+        - name: Confirm destruction
+          pause:
+            prompt: |
+              This permanently destroys the server '{{ algo_server_name }}'.
+              Type 'yes' to confirm
+          register: _confirm_destroy
+          when: not confirm_destroy | default(false) | bool
+
+        - name: Abort if not confirmed
+          fail:
+            msg: "Destroy aborted. To skip the prompt run: ./algo destroy -e confirm_destroy=true"
+          when:
+            - not confirm_destroy | default(false) | bool
+            - _confirm_destroy.user_input | default('') | lower != 'yes'
+
+        - name: Destroy cloud resources
+          include_tasks: roles/cloud-openstack/tasks/destroy.yml
+      rescue:
+        - include_tasks: playbooks/rescue.yml

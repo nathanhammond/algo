@@ -9,7 +9,9 @@ if [ -f "requirements.yml" ]; then
 fi
 
 # Run the appropriate playbook
-case "$1" in
+case "${1:-}" in
+  destroy)
+    uv run ansible-playbook destroy.yml "${@:2}" ;;
   *)
     uv run ansible-playbook main.yml "${@}" ;;
 esac
