@@ -18,8 +18,10 @@
     content: |
       # Algo VPN systemd security hardening for WireGuard
       [Service]
-      # Privilege restrictions
-      NoNewPrivileges=yes
+      # No NoNewPrivileges: Ubuntu 26.04's AppArmor profile for wg-quick moves into
+      # child profiles to run ip and wg, which the kernel refuses under no-new-privs
+      # (wg-quick then fails with "Operation not permitted"). wg-quick runs as root,
+      # so the setting added little; that profile confines it instead.
 
       # Filesystem isolation
       ProtectSystem=strict
