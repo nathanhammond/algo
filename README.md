@@ -145,7 +145,8 @@ This replaces the server's firewall rules, so only use it on a server dedicated 
   client-to-client traffic, the cloud metadata service, and SMB/NetBIOS.
 - **Privacy settings:** short log retention, VPN messages filtered from syslog, shell history
   cleared, and daily cleanup.
-- **unattended-upgrades** installs security updates automatically.
+- **unattended-upgrades** installs security updates automatically and, when one needs it,
+  reboots at 21:00 UTC (`unattended_reboot` in `config.cfg`).
 
 ## License
 
