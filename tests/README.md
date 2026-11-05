@@ -50,7 +50,7 @@ server holds that record it is removed with it, which needs the Cloudflare token
 ## Performance
 
 ```bash
-tests/perf.sh <server-ip> configs/<server-ip>/wireguard/<user>.conf --name <server-name>
+tests/perf.sh <server-ip> configs/<server-ip>/wireguard/<user>.conf --name <server-name> [--site URL]
 ```
 
 Use a client config that no device is connected with at the same time. Disconnect any VPN on

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Measures what limits VPN performance on a deployed server, and whether a change would help.
 #
-# Usage: tests/perf.sh <server-ip> <client-config> [--name SERVER_NAME] [--runs N]
+# Usage: tests/perf.sh <server-ip> <client-config> [--name SERVER_NAME] [--runs N] [--site URL]
 #
 # <client-config> is a WireGuard client config for that server. Use one no device
 # is connected with at the same time (a test user): two clients sharing a key keep
@@ -22,10 +22,11 @@ set -uo pipefail
 
 [ $# -ge 2 ] || { sed -n '3,4p' "$0" | sed 's/^# //' >&2; exit 2; }
 IP=$1; CONF=$2; shift 2
-NAME=""; RUNS=3
+NAME=""; RUNS=3; SITE=https://www.youtube.com/
 while [ $# -gt 0 ]; do
   case $1 in
     --name) NAME=$2; shift 2 ;;
+    --site) SITE=$2; shift 2 ;;
     --runs) RUNS=$2; shift 2 ;;
     *) echo "Unknown option $1" >&2; exit 2 ;;
   esac
@@ -263,19 +264,26 @@ read -r uncached _ <<<"$(stats "${unc[@]}")"
 read -r direct_dns _ <<<"$(stats "${dir[@]}")"
 read -r tcp_rc tcp_ms <<<"$(wall_ms $IN dig +tcp +time=3 +tries=1 "@$VPN_DNS" example.com)"
 tcp_ok=no; [ "$tcp_rc" = 0 ] && tcp_ok=yes
-# A TXT answer larger than one UDP response, so the client must retry over TCP
+# TXT answers of 1.9 and 2.5 KB: too large for one UDP response (1232 bytes), so
+# the client must retry over TCP. dnscrypt-proxy drops answers over 4096 bytes
+# (its fixed MaxDNSPacketSize), so larger ones are checked separately.
 big_ok=0; big_t=()
-for _ in 1 2 3; do
-  read -r _ ms <<<"$(wall_ms $IN dig +time=5 +tries=1 "@$VPN_DNS" TXT microsoft.com)"
+for n in github.com cloudflare.com github.com cloudflare.com; do
+  read -r _ ms <<<"$(wall_ms $IN dig +time=5 +tries=1 "@$VPN_DNS" TXT "$n")"
   docker exec $IN grep -q 'ANSWER: [1-9]' /tmp/out && big_ok=$((big_ok + 1))
   big_t+=("$ms")
 done
 read -r big_ms _ <<<"$(stats "${big_t[@]}")"
+huge_ok=no; docker exec $IN dig +time=5 +tries=1 "@$VPN_DNS" TXT microsoft.com 2>/dev/null | grep -q 'ANSWER: [1-9]' && huge_ok=yes
 kv "Cached lookup through the tunnel" "${cached:-?} ms (the round trip to the server)"
 kv "Uncached lookup through the tunnel" "$uncached ms"
 kv "Uncached lookup, direct to 1.1.1.1" "$direct_dns ms"
 kv "DNS over TCP through the tunnel" "$tcp_ok (${tcp_ms} ms)"
-kv "Large answer (TXT microsoft.com)" "$big_ok of 3 answered, $big_ms ms on average"
+kv "Answers of 1.9-2.5 KB (TCP retry)" "$big_ok of 4 answered, $big_ms ms on average"
+kv "Answer over 4 KB (TXT microsoft.com)" "$huge_ok"
+if [ "$huge_ok" = no ]; then
+  verdict NOTE "Answers over 4096 bytes fail: dnscrypt-proxy drops them (a fixed limit). They are rare: large TXT record sets such as microsoft.com's."
+fi
 if [ "$tcp_ok" = no ]; then
   verdict CHANGE "DNS over TCP is blocked, so answers too large for UDP (some TXT and DNSSEC records) fail after a timeout. Allow TCP port 53 from wg0 in the firewall."
 else
@@ -284,6 +292,32 @@ fi
 if awk "BEGIN {exit !($uncached > ${rtt_tunnel:-0} + 100)}"; then
   verdict NOTE "Uncached lookups take $uncached ms, well over the ${rtt_tunnel} ms round trip: the upstream resolver is slow from the server."
 fi
+
+section "Page load ($SITE, $RUNS x)"
+# page_times CONTAINER RESOLVER : "dns connect tls ttfb total" in ms for one load of $SITE.
+# DNS goes to RESOLVER (the VPN's resolver through the tunnel, 1.1.1.1 directly);
+# curl then connects to that address, so each phase is measured on its own path.
+page_times() {
+  docker exec "$1" sh -c '
+    host=$(echo "$2" | sed -E "s#^https?://([^/:]+).*#\1#")
+    s=$(date +%s%N); ip=$(dig +short +time=5 +tries=1 "@$1" "$host" A | grep -E "^[0-9.]+$" | head -1); e=$(date +%s%N)
+    [ -n "$ip" ] || exit 1
+    curl -s -o /dev/null -m 30 --resolve "$host:443:$ip" -w "%{time_connect} %{time_appconnect} %{time_starttransfer} %{time_total}" "$2" |
+      awk -v d=$(( (e - s) / 1000000 )) "{printf \"%d %.0f %.0f %.0f %.0f\", d, \$1 * 1000, (\$2 - \$1) * 1000, (\$3 - \$2) * 1000, d + \$4 * 1000}"
+  ' sh "$2" "$SITE"
+}
+# page_stats CONTAINER RESOLVER : mean of each phase over $RUNS loads
+page_stats() {
+  local out=""
+  for _ in $(seq "$RUNS"); do out="$out$(page_times "$1" "$2")"$'\n'; done
+  awk 'NF == 5 {for (i = 1; i <= 5; i++) s[i] += $i; n++} END {if (n) printf "%.0f %.0f %.0f %.0f %.0f %d", s[1]/n, s[2]/n, s[3]/n, s[4]/n, s[5]/n, n; else print "- - - - - 0"}' <<<"$out"
+}
+read -r pd_dns pd_tcp pd_tls pd_ttfb pd_total pd_n <<<"$(page_stats $OUT 1.1.1.1)"
+read -r pt_dns pt_tcp pt_tls pt_ttfb pt_total pt_n <<<"$(page_stats $IN "$VPN_DNS")"
+kv "Phase (ms)" "$(printf '%7s %7s %7s %7s %7s' dns connect tls ttfb total)"
+kv "Direct ($pd_n loads)" "$(printf '%7s %7s %7s %7s %7s' "$pd_dns" "$pd_tcp" "$pd_tls" "$pd_ttfb" "$pd_total")"
+kv "Through the tunnel ($pt_n loads)" "$(printf '%7s %7s %7s %7s %7s' "$pt_dns" "$pt_tcp" "$pt_tls" "$pt_ttfb" "$pt_total")"
+verdict NOTE "This times the page's HTML request, not a browser loading every image and script; each extra connection a page opens costs about another connect + tls."
 
 section "Server network settings"
 read -r ct_count ct_max <<<"$(ni conntrack)"
@@ -306,10 +340,10 @@ if [ "$(ni softnet_dropped)" != 0 ]; then
 fi
 
 # --- Record --------------------------------------------------------------------
-printf '{"time":"%s","name":"%s","ip":"%s","host_id":"%s","flavor":"%s","cpu":"%s","vcpus":%s,"bench_bps":%s,"bench_cv":%s,"steal_idle":%s,"steal_load":%s,"busy_load":%s,"rtt_server_ms":%s,"rtt_tunnel_ms":%s,"direct_bps":%s,"server_bps":%s,"tunnel_down_bps":%s,"tunnel_up_bps":%s,"path_mtu":%s,"tunnel_payload":%s,"dns_cached_ms":%s,"dns_uncached_ms":%s,"dns_tcp":"%s","dns_large_ok":%s,"dns_large_ms":%s,"big_packet_loss":"%s","big_packet_ms":"%s","wg_mtu":%s}\n' \
+printf '{"time":"%s","name":"%s","ip":"%s","host_id":"%s","flavor":"%s","cpu":"%s","vcpus":%s,"bench_bps":%s,"bench_cv":%s,"steal_idle":%s,"steal_load":%s,"busy_load":%s,"rtt_server_ms":%s,"rtt_tunnel_ms":%s,"direct_bps":%s,"server_bps":%s,"tunnel_down_bps":%s,"tunnel_up_bps":%s,"path_mtu":%s,"tunnel_payload":%s,"dns_cached_ms":%s,"dns_uncached_ms":%s,"dns_tcp":"%s","dns_large_ok":%s,"page_direct_ms":"%s","page_tunnel_ms":"%s","dns_large_ms":%s,"big_packet_loss":"%s","big_packet_ms":"%s","wg_mtu":%s}\n' \
   "$(date -u +%FT%TZ)" "$NAME" "$IP" "$HOST_ID" "$FLAVOR" "$(hw cpu_model)" "$(hw vcpus)" "$bench_mean" "$bench_cv" \
   "$idle_steal" "$load_steal" "$load_busy" "${rtt_server:-0}" "${rtt_tunnel:-0}" "$direct_mean" "$server_mean" "$tunnel_mean" \
-  "$up_mean" "$((outer + 28))" "$inner" "${cached:-0}" "$uncached" "$tcp_ok" "$big_ok" "$big_ms" "$big_loss" "$big_avg" "$wg_mtu" >>"$RESULTS/perf.jsonl"
+  "$up_mean" "$((outer + 28))" "$inner" "${cached:-0}" "$uncached" "$tcp_ok" "$big_ok" "$pd_total" "$pt_total" "$big_ms" "$big_loss" "$big_avg" "$wg_mtu" >>"$RESULTS/perf.jsonl"
 
 section "Earlier runs (tests/results/perf.jsonl)"
 (cd "$REPO" && uv run python -I - "$RESULTS/perf.jsonl" <<'PY'
