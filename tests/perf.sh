@@ -65,6 +65,16 @@ max_payload() {
   done
   echo 0
 }
+# wall_ms CONTAINER COMMAND... : "exit-status milliseconds" for COMMAND, retries and timeouts included
+wall_ms() {
+  local c=$1; shift
+  docker exec "$c" sh -c 's=$(date +%s%N); "$@" >/tmp/out 2>&1; r=$?; e=$(date +%s%N); echo "$r $(( (e - s) / 1000000 ))"' sh "$@"
+}
+# server_ping SIZE TARGET : "loss% avg_ms" for 20 pings of SIZE bytes from the server
+server_ping() {
+  ssh_server ping -c 20 -i 0.2 -W 2 -s "$1" "$2" 2>/dev/null |
+    awk '/packet loss/ {for (i = 1; i <= NF; i++) if ($i ~ /%$/) l = $i} /^rtt/ {split($4, r, "/"); a = r[2]} END {printf "%s %s", l, (a == "" ? "-" : a)}'
+}
 # dig_ms CONTAINER RESOLVER NAME [ARGS] : query time in ms
 dig_ms() { docker exec "$1" dig +time=5 +tries=1 "@$2" "$3" "${@:4}" | awk '/Query time:/ {print $4}'; }
 # cpu_sample : the server's aggregate /proc/stat cpu line
@@ -231,6 +241,11 @@ elif [ "$inner" -eq 0 ]; then
 else
   verdict OK "Full-size tunnel packets from the client reach the server unfragmented."
 fi
+CLIENT_IP=$(awk -F'[ =/,]+' '/^Address/ {print $2}' "$CONF")
+read -r big_loss big_avg <<<"$(server_ping 1472 "$CLIENT_IP")"
+read -r small_loss small_avg <<<"$(server_ping 1372 "$CLIENT_IP")"
+kv "Server to client, 1500-byte packets" "loss $big_loss, ${big_avg} ms"
+kv "Server to client, 1400-byte packets" "loss $small_loss, ${small_avg} ms (fit the client either way)"
 if [ "$wg_mtu" -gt "$client_mtu" ]; then
   verdict CHANGE "wg0's MTU ($wg_mtu, from $(ni dev)'s $(ni dev_mtu)) is larger than the clients' ($client_mtu). Packets from the internet that fit wg0 but not the client are sent as oversized tunnel packets that fragment on the way, instead of the sender being told to use smaller ones. Set MTU = $client_mtu in wg0.conf."
 fi
@@ -246,14 +261,21 @@ for _ in 1 2 3 4 5; do
 done
 read -r uncached _ <<<"$(stats "${unc[@]}")"
 read -r direct_dns _ <<<"$(stats "${dir[@]}")"
-tcp_ok=no; docker exec $IN dig +tcp +time=3 +tries=1 "@$VPN_DNS" example.com >/dev/null 2>&1 && tcp_ok=yes
-# A TXT answer larger than one UDP response, so the resolver must retry over TCP
-big=$(docker exec $IN dig +time=5 +tries=1 "@$VPN_DNS" TXT microsoft.com 2>&1 | awk '/ANSWER:/ {gsub(",", ""); for (i = 1; i <= NF; i++) if ($i == "ANSWER:") print $(i + 1)}')
+read -r tcp_rc tcp_ms <<<"$(wall_ms $IN dig +tcp +time=3 +tries=1 "@$VPN_DNS" example.com)"
+tcp_ok=no; [ "$tcp_rc" = 0 ] && tcp_ok=yes
+# A TXT answer larger than one UDP response, so the client must retry over TCP
+big_ok=0; big_t=()
+for _ in 1 2 3; do
+  read -r _ ms <<<"$(wall_ms $IN dig +time=5 +tries=1 "@$VPN_DNS" TXT microsoft.com)"
+  docker exec $IN grep -q 'ANSWER: [1-9]' /tmp/out && big_ok=$((big_ok + 1))
+  big_t+=("$ms")
+done
+read -r big_ms _ <<<"$(stats "${big_t[@]}")"
 kv "Cached lookup through the tunnel" "${cached:-?} ms (the round trip to the server)"
 kv "Uncached lookup through the tunnel" "$uncached ms"
 kv "Uncached lookup, direct to 1.1.1.1" "$direct_dns ms"
-kv "DNS over TCP through the tunnel" "$tcp_ok"
-kv "Large answer (TXT microsoft.com)" "${big:-0} records"
+kv "DNS over TCP through the tunnel" "$tcp_ok (${tcp_ms} ms)"
+kv "Large answer (TXT microsoft.com)" "$big_ok of 3 answered, $big_ms ms on average"
 if [ "$tcp_ok" = no ]; then
   verdict CHANGE "DNS over TCP is blocked, so answers too large for UDP (some TXT and DNSSEC records) fail after a timeout. Allow TCP port 53 from wg0 in the firewall."
 else
@@ -284,10 +306,10 @@ if [ "$(ni softnet_dropped)" != 0 ]; then
 fi
 
 # --- Record --------------------------------------------------------------------
-printf '{"time":"%s","name":"%s","ip":"%s","host_id":"%s","flavor":"%s","cpu":"%s","vcpus":%s,"bench_bps":%s,"bench_cv":%s,"steal_idle":%s,"steal_load":%s,"busy_load":%s,"rtt_server_ms":%s,"rtt_tunnel_ms":%s,"direct_bps":%s,"server_bps":%s,"tunnel_down_bps":%s,"tunnel_up_bps":%s,"path_mtu":%s,"tunnel_payload":%s,"dns_cached_ms":%s,"dns_uncached_ms":%s,"dns_tcp":"%s"}\n' \
+printf '{"time":"%s","name":"%s","ip":"%s","host_id":"%s","flavor":"%s","cpu":"%s","vcpus":%s,"bench_bps":%s,"bench_cv":%s,"steal_idle":%s,"steal_load":%s,"busy_load":%s,"rtt_server_ms":%s,"rtt_tunnel_ms":%s,"direct_bps":%s,"server_bps":%s,"tunnel_down_bps":%s,"tunnel_up_bps":%s,"path_mtu":%s,"tunnel_payload":%s,"dns_cached_ms":%s,"dns_uncached_ms":%s,"dns_tcp":"%s","dns_large_ok":%s,"dns_large_ms":%s,"big_packet_loss":"%s","big_packet_ms":"%s","wg_mtu":%s}\n' \
   "$(date -u +%FT%TZ)" "$NAME" "$IP" "$HOST_ID" "$FLAVOR" "$(hw cpu_model)" "$(hw vcpus)" "$bench_mean" "$bench_cv" \
   "$idle_steal" "$load_steal" "$load_busy" "${rtt_server:-0}" "${rtt_tunnel:-0}" "$direct_mean" "$server_mean" "$tunnel_mean" \
-  "$up_mean" "$((outer + 28))" "$inner" "${cached:-0}" "$uncached" "$tcp_ok" >>"$RESULTS/perf.jsonl"
+  "$up_mean" "$((outer + 28))" "$inner" "${cached:-0}" "$uncached" "$tcp_ok" "$big_ok" "$big_ms" "$big_loss" "$big_avg" "$wg_mtu" >>"$RESULTS/perf.jsonl"
 
 section "Earlier runs (tests/results/perf.jsonl)"
 (cd "$REPO" && uv run python -I - "$RESULTS/perf.jsonl" <<'PY'
