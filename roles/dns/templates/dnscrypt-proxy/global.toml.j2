@@ -68,8 +68,10 @@ dnscrypt_ephemeral_keys = true
 ## DoH: Disable TLS session tickets - increases privacy but also latency
 tls_disable_session_tickets = true
 
-## Fallback resolver (used only for initial resolver list retrieval)
-fallback_resolver = '127.0.0.53:53'
+## Resolvers used only to fetch the resolver list and look up DoH server names.
+## 2.1 dropped the singular fallback_resolver; fallback_resolvers works on
+## 2.0.45 (Ubuntu 24.04) and 2.1 (Ubuntu 26.04), where bootstrap_resolvers does not.
+fallback_resolvers = ['127.0.0.53:53']
 
 ## Never let dnscrypt-proxy try to use the system DNS settings
 ignore_system_dns = true
