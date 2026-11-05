@@ -49,13 +49,15 @@
     ansible_ssh_private_key_file: "{{ playbook_dir }}/{{ SSH_keys.private }}"
   when: algo_provider != 'local'
 
+# cloud-init installs every pending update before it moves SSH to ssh_port,
+# which took nearly five minutes on a new Ubuntu 26.04 server.
 - name: Wait until SSH becomes ready...
   wait_for:
     port: "{{ ansible_ssh_port | default(22) }}"
     host: "{{ cloud_instance_ip }}"
     search_regex: OpenSSH
     delay: 10
-    timeout: 320
+    timeout: 900
     state: present
   when: cloud_instance_ip != "localhost"
 
