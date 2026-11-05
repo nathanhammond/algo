@@ -2,12 +2,6 @@
 
 set -e
 
-# Install Ansible Galaxy collections if requirements.yml exists
-# This is needed for cloud providers that use collection modules (Linode, DigitalOcean, Azure, etc.)
-if [ -f "requirements.yml" ]; then
-    uv run ansible-galaxy collection install -r requirements.yml > /dev/null 2>&1 || true
-fi
-
 # Run the appropriate playbook
 case "${1:-}" in
   destroy)
