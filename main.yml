@@ -74,6 +74,14 @@
           endpoint_hostname is match('^(?=.{1,253}$)([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,63}$')
         msg: "endpoint_hostname in config.cfg must be a DNS name such as vpn.example.com, or empty"
 
+    - name: Verify the Cloudflare token can manage the endpoint hostname
+      include_tasks: playbooks/cloudflare-dns.yml
+      vars:
+        dns_check_only: true
+      when:
+        - endpoint_hostname | default('') | length > 0
+        - cloudflare_api_token | default('') | length > 0
+
     - name: Check for the WireGuard tools
       command: wg --version
       register: _wg_version

@@ -47,6 +47,19 @@
           when: privacy_enhancements_enabled | default(true)
           tags: privacy
 
+        - name: Point the endpoint hostname at this server
+          include_tasks:
+            file: playbooks/cloudflare-dns.yml
+            apply:
+              delegate_to: localhost
+              become: false
+          vars:
+            dns_target_ip: "{{ IP_subject_alt_name }}"
+            dns_project_ips: "{{ hostvars['localhost'].project_server_ips | default(none) }}"
+          when:
+            - endpoint_hostname | default('') | length > 0
+            - cloudflare_api_token | default('') | length > 0
+
         - tags: always
           block:
             - debug:

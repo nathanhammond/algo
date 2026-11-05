@@ -1,0 +1,63 @@
+---
+- name: Point the endpoint hostname at a DreamCompute server
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars_files:
+    - config.cfg
+  vars:
+    # Same name the server was created with (see input.yml)
+    algo_server_name: "{{ server_name | default('algo') | regex_replace('(?!\\.)(\\W|_)', '-') }}"
+
+  tasks:
+    - block:
+        - name: Verify the endpoint hostname and Cloudflare token are set
+          assert:
+            that:
+              - endpoint_hostname | default('') | length > 0
+              - cloudflare_api_token | default('') | length > 0
+            msg: >-
+              switch-dns needs endpoint_hostname in config.cfg and a Cloudflare API token in
+              CLOUDFLARE_API_TOKEN (Zone:Read and DNS:Edit for the hostname's zone).
+
+        - name: Verify the OpenStack credentials are loaded
+          assert:
+            that: lookup('env', 'OS_AUTH_URL') | length > 0
+            msg: "OpenStack credentials are not set. Run: source ./<project>-openrc.sh"
+
+        - name: Look up the server
+          openstack.cloud.server_info:
+            name: "{{ algo_server_name }}"
+          register: _switch_server
+
+        - name: Verify the server exists
+          assert:
+            that: _switch_server.servers | length == 1
+            msg: "No DreamCompute server is named {{ algo_server_name }}."
+
+        - name: Find the server's IPv4 address
+          set_fact:
+            _switch_ip: >-
+              {{ _switch_server.servers[0].addresses | dict2items | map(attribute='value') | flatten
+                 | selectattr('version', '==', 4) | map(attribute='addr') | first }}
+
+        - name: Point the endpoint hostname at the server
+          include_tasks: playbooks/cloudflare-dns.yml
+          vars:
+            dns_target_ip: "{{ _switch_ip }}"
+            dns_move: true
+
+        - name: Look for the server's client configs
+          stat:
+            path: "configs/{{ _switch_ip }}/wireguard"
+          register: _switch_configs
+
+        - name: Report where the client configs are
+          debug:
+            msg: >-
+              {{ 'Devices need the configs in configs/' + _switch_ip + '/wireguard/ to connect to ' + algo_server_name + '.'
+                 if _switch_configs.stat.exists else
+                 'There are no client configs for ' + algo_server_name + ' in configs/' + _switch_ip
+                 + '/wireguard/, so no device has keys for it. Deploy it with ./algo -e server_name=' + algo_server_name + ' first.' }}
+      rescue:
+        - include_tasks: playbooks/rescue.yml

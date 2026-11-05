@@ -64,6 +64,17 @@
     that: public_network is not none
     msg: No active external network was found in this OpenStack project.
 
+# Used to decide whether endpoint_hostname may be pointed at this server
+- name: Look up the project's servers
+  openstack.cloud.server_info:
+  register: os_all_servers
+
+- name: Remember the project's server addresses
+  set_fact:
+    project_server_ips: >-
+      {{ os_all_servers.servers | map(attribute='addresses') | map('dict2items') | flatten
+         | map(attribute='value') | flatten | selectattr('version', '==', 4) | map(attribute='addr') | list }}
+
 - name: Look up an existing server
   openstack.cloud.server_info:
     name: "{{ algo_server_name }}"

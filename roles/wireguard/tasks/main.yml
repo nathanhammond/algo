@@ -76,7 +76,9 @@
   failed_when: false
   delegate_to: localhost
   become: false
-  when: endpoint_hostname | default('') | length > 0
+  when:
+    - endpoint_hostname | default('') | length > 0
+    - cloudflare_api_token | default('') | length == 0
 
 # Clients use the hostname, so say where it points; changing the DNS record is up to the user.
 - name: Report where the endpoint hostname points
@@ -88,7 +90,9 @@
          'points to this server.' if IP_subject_alt_name in _endpoint_lookup.stdout.split() else
          'points to ' + _endpoint_lookup.stdout + ', not this server. Clients connect there until its A record is changed to '
          + IP_subject_alt_name + '.' }}
-  when: endpoint_hostname | default('') | length > 0
+  when:
+    - endpoint_hostname | default('') | length > 0
+    - cloudflare_api_token | default('') | length == 0
 
 - name: WireGuard enabled and started
   service:

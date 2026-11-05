@@ -33,17 +33,37 @@ dns_records:
 `provider: openstack` skips the provider prompt. The other two settings are optional:
 
 - `endpoint_hostname`: client configs connect to this name instead of the server's IP address.
-  Point its DNS A record at the server. Each run reports whether the name resolves to that
-  server.
+  If its DNS is on Cloudflare, Algo can manage the A record (see below). Otherwise point the
+  record at the server yourself; each run reports whether the name resolves to that server.
 - `dns_records`: VPN clients that look up exactly that name get that address, and subdomains are
   not matched.
 
+### Cloudflare DNS for `endpoint_hostname`
+
+Create a Cloudflare API token with **Zone:Read** and **DNS:Edit** for the hostname's zone, then
+export it before running Algo:
+
+```bash
+export CLOUDFLARE_API_TOKEN=...
+```
+
+After a server is configured, Algo points the hostname's A record at it, as DNS only (Cloudflare's
+proxy can't carry WireGuard) with a 60-second TTL. It does this when the record is missing or
+already points to that server, or when it points to an address that no current server in the
+project uses (such as a destroyed server). It never takes the name away from another existing
+server; use `switch-dns` for that.
+
 ## Switch to another server
 
-With `endpoint_hostname` set, deploy the new server with a different `server_name`, give each
-device that server's config from `configs/<new-server-ip>/wireguard/`, then change the
-hostname's A record to the new server's IP. Each server has its own keys, so a device keeps
-using its old server until it has the new server's config.
+Deploy the new server with a different `server_name`, give each device that server's config from
+`configs/<new-server-ip>/wireguard/`, then point the hostname at it:
+
+```bash
+./algo switch-dns <server-name>
+```
+
+Each server has its own keys, so a device keeps using its old server until it has the new
+server's config. Without a Cloudflare token, change the A record yourself instead.
 
 ## Deploy
 

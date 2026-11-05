@@ -1,0 +1,130 @@
+---
+# Points endpoint_hostname's Cloudflare A record at dns_target_ip.
+#
+# Inputs:
+#   dns_target_ip     IPv4 address the hostname should resolve to
+#   dns_move          true to repoint the hostname even if it points at another server
+#   dns_project_ips   IPv4 addresses of the project's existing servers (undefined when unknown)
+#   dns_check_only    true to only verify that the token can manage the hostname's zone
+#
+# Without dns_move, an existing record is only changed when it does not point at
+# another existing server, so deploying a second server never takes the name away
+# from the one in use. When the project's servers are unknown it is only created.
+# API calls use no_log so the token never appears in output.
+
+- name: Cloudflare | Settings
+  set_fact:
+    _cf_api: "{{ cloudflare_api | default('https://api.cloudflare.com/client/v4') }}"
+    # Short TTL so switching servers takes effect quickly
+    _cf_ttl: 60
+    _cf_zone: null
+
+- name: Cloudflare | Find the zone for the endpoint hostname
+  uri:
+    url: "{{ _cf_api }}/zones?per_page=50"
+    headers:
+      Authorization: "Bearer {{ cloudflare_api_token }}"
+    status_code: [200, 400, 401, 403]
+  register: _cf_zones
+  no_log: true
+
+- name: Cloudflare | Verify the API token works
+  assert:
+    that: _cf_zones.status == 200
+    msg: >-
+      Cloudflare rejected CLOUDFLARE_API_TOKEN ({{ _cf_zones.json.errors | default([]) | map(attribute='message') | join('; ') }}).
+      Create an API token with Zone:Read and DNS:Edit for the zone that contains {{ endpoint_hostname }}.
+
+# The zone is the longest zone name that the hostname is, or ends with.
+- name: Cloudflare | Pick the zone
+  set_fact:
+    _cf_zone: "{{ item }}"
+  loop: "{{ _cf_zones.json.result }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - endpoint_hostname == item.name or endpoint_hostname.endswith('.' + item.name)
+    - _cf_zone is none or item.name | length > _cf_zone.name | length
+
+- name: Cloudflare | Verify the token can see the hostname's zone
+  assert:
+    that: _cf_zone is not none
+    msg: >-
+      CLOUDFLARE_API_TOKEN cannot see a Cloudflare zone for {{ endpoint_hostname }}.
+      Give the token Zone:Read and DNS:Edit for that zone.
+
+- name: Cloudflare | Update the record
+  when: not dns_check_only | default(false)
+  block:
+    - name: Cloudflare | Read the current records
+      uri:
+        url: "{{ _cf_api }}/zones/{{ _cf_zone.id }}/dns_records?name={{ endpoint_hostname | urlencode }}&type={{ item }}"
+        headers:
+          Authorization: "Bearer {{ cloudflare_api_token }}"
+      loop: [A, AAAA]
+      register: _cf_records
+      no_log: true
+
+    - name: Cloudflare | Decide what to change
+      set_fact:
+        _cf_a: "{{ _cf_records.results[0].json.result }}"
+        _cf_aaaa: "{{ _cf_records.results[1].json.result }}"
+
+    - name: Cloudflare | Verify there is at most one A record
+      assert:
+        that: _cf_a | length <= 1
+        msg: >-
+          {{ endpoint_hostname }} has {{ _cf_a | length }} A records ({{ _cf_a | map(attribute='content') | join(', ') }}).
+          Delete all but one in the Cloudflare dashboard; this playbook will not guess which to keep.
+
+    - name: Cloudflare | Work out the action
+      set_fact:
+        _cf_action: >-
+          {%- if _cf_a | length == 0 -%}create
+          {%- elif _cf_a[0].content == dns_target_ip and not _cf_a[0].proxied -%}none
+          {%- elif _cf_a[0].content == dns_target_ip -%}update
+          {%- elif dns_move | default(false) -%}update
+          {%- elif dns_project_ips | default(none) is not none and _cf_a[0].content not in dns_project_ips -%}update
+          {%- elif dns_project_ips | default(none) is none -%}keep-unknown
+          {%- else -%}keep
+          {%- endif -%}
+
+    - name: Cloudflare | Create the A record
+      uri:
+        url: "{{ _cf_api }}/zones/{{ _cf_zone.id }}/dns_records"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ cloudflare_api_token }}"
+        body_format: json
+        body: {type: A, name: "{{ endpoint_hostname }}", content: "{{ dns_target_ip }}", ttl: "{{ _cf_ttl }}", proxied: false}
+      when: _cf_action == 'create'
+      changed_when: true
+      no_log: true
+
+    - name: Cloudflare | Point the A record at this server
+      uri:
+        url: "{{ _cf_api }}/zones/{{ _cf_zone.id }}/dns_records/{{ _cf_a[0].id }}"
+        method: PATCH
+        headers:
+          Authorization: "Bearer {{ cloudflare_api_token }}"
+        body_format: json
+        body: {content: "{{ dns_target_ip }}", ttl: "{{ _cf_ttl }}", proxied: false}
+      when: _cf_action == 'update'
+      changed_when: true
+      no_log: true
+
+    - name: Cloudflare | Report the endpoint hostname
+      debug:
+        msg: >-
+          {{ (endpoint_hostname + ' '
+              + {'create': 'now points to ' + dns_target_ip + ' (new A record).',
+                 'update': 'now points to ' + dns_target_ip + ' (was ' + (_cf_a[0].content | default('')) + ').',
+                 'none': 'already points to ' + dns_target_ip + '.',
+                 'keep': 'still points to ' + (_cf_a[0].content | default('')) + ', which is another existing server, so it was not moved.'
+                         + ' To move it run: ./algo switch-dns ' + (algo_server_name | default(server_name)),
+                 'keep-unknown': 'still points to ' + (_cf_a[0].content | default('')) + '. It was not moved because the servers'
+                                 + ' in use are not known on an existing-server install; change the A record to ' + dns_target_ip
+                                 + ' in Cloudflare to use this server.'}[_cf_action]
+              + (' Note: it also has an AAAA record (' + (_cf_aaaa | map(attribute='content') | join(', '))
+                 + '); the security group only allows WireGuard over IPv4, so clients that prefer IPv6 may fail to connect.'
+                 if _cf_aaaa | length > 0 else '')) | trim }}

@@ -12,6 +12,13 @@ fi
 case "${1:-}" in
   destroy)
     uv run ansible-playbook destroy.yml "${@:2}" ;;
+  switch-dns)
+    # ./algo switch-dns [server-name] [ansible options]; the name defaults to server_name in config.cfg
+    if [ -n "${2:-}" ] && [[ "$2" != -* ]]; then
+      uv run ansible-playbook switch-dns.yml -e "server_name=$2" "${@:3}"
+    else
+      uv run ansible-playbook switch-dns.yml "${@:2}"
+    fi ;;
   *)
     uv run ansible-playbook main.yml "${@}" ;;
 esac
