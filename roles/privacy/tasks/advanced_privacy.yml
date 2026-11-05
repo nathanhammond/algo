@@ -27,10 +27,13 @@
     - { key: 'ForwardToSyslog', value: 'no' }
   notify: restart systemd-journald
 
-- name: Disable persistent systemd journal
-  file:
-    path: /var/log/journal
-    state: absent
+# Storage=volatile (below) keeps the journal in /run. systemd recreates the empty
+# /var/log/journal directory at boot, so remove only journal files written before.
+- name: Remove persistent journal files
+  command: find /var/log/journal -mindepth 1 -delete -print
+  register: _journal_files
+  changed_when: _journal_files.stdout | length > 0
+  failed_when: _journal_files.rc != 0 and 'No such file' not in _journal_files.stderr
   when: privacy_advanced.reduce_kernel_verbosity | bool
 
 - name: Create journal configuration for volatile storage only
