@@ -75,6 +75,11 @@
           users in config.cfg must be a list of unique names, each up to 64 letters, digits, '.', '_' or '-'
           starting with a letter or digit, and none may be an IP address.
 
+    - name: Verify dns_force_dnscrypt has a resolver to send DNS to
+      assert:
+        that: dns_encryption | bool or not dns_force_dnscrypt | default(false) | bool
+        msg: "dns_force_dnscrypt needs dns_encryption: true in config.cfg, or set dns_force_dnscrypt: false"
+
     - name: Verify the custom DNS records
       assert:
         that: (dns_records | default({})).values() | reject('ansible.utils.ip_address') | list | length == 0

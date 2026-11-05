@@ -109,6 +109,12 @@ tunnel_checks() {
   fi
   check "DNS through dnscrypt-proxy ($dns)" has_line '^[0-9.]+$' docker exec "$c1" dig +short +time=5 +tries=2 @"$dns" example.com
   check "custom record nas.example.test" has_line '^192\.0\.2\.10$' docker exec "$c1" dig +short @"$dns" nas.example.test
+  # Only this server's dnscrypt-proxy knows nas.example.test, so getting it from
+  # "8.8.8.8" shows the query was answered by dnscrypt-proxy (dns_force_dnscrypt)
+  check "DNS sent to other resolvers is answered by dnscrypt-proxy" has_line '^192\.0\.2\.10$' docker exec "$c1" dig +short +time=5 @8.8.8.8 nas.example.test
+  check "... over TCP too" has_line '^192\.0\.2\.10$' docker exec "$c1" dig +short +tcp +time=5 @8.8.8.8 nas.example.test
+  check "DNS over TCP works" has_line '^[0-9.]+$' docker exec "$c1" dig +short +tcp +time=5 @"$dns" example.com
+  check "answers too large for UDP arrive (TXT microsoft.com)" has_line 'ANSWER: [1-9]' docker exec "$c1" dig +time=5 @"$dns" TXT microsoft.com
   check "custom record is exact-match only" lacks_line '^192\.0\.2\.10$' docker exec "$c1" dig +short @"$dns" x.nas.example.test
   # sslip.io names resolve to the address they spell out
   check "DNS answers with private addresses are blocked" lacks_line '^10\.1\.2\.3$' docker exec "$c1" dig +short +time=5 @"$dns" 10-1-2-3.sslip.io

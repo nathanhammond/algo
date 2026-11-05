@@ -140,7 +140,8 @@ This replaces the server's firewall rules, so only use it on a server dedicated 
 - **WireGuard** on UDP `wireguard_port`
 - **dnscrypt-proxy** on a private address on `lo` (`local_service_ip`), reachable only through
   the VPN. It forwards to `dnscrypt_servers` over DNSCrypt/DoH, never logs queries, and answers
-  `dns_records`.
+  `dns_records`. With `dns_force_dnscrypt` (the default), it also answers DNS that devices send
+  to any other resolver, so no plain DNS query leaves the server.
 - **iptables** (nftables backend) allows only SSH, WireGuard, and ping. It also blocks
   client-to-client traffic, the cloud metadata service, and SMB/NetBIOS.
 - **Privacy settings:** short log retention, VPN messages filtered from syslog, shell history

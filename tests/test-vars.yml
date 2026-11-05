@@ -8,4 +8,5 @@ users:
 dns_records:
   nas.example.test: 192.0.2.10
 endpoint_hostname: ""
+dns_force_dnscrypt: true
 cloudflare_api_token: ""
