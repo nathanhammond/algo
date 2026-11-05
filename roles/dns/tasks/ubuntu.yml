@@ -23,6 +23,19 @@
     name: dnscrypt-proxy-resolvconf
     masked: true
 
+# It may already have run (and failed) when the package was installed;
+# masking does not clear that state.
+- name: Ubuntu | Check whether the resolvconf helper failed during install
+  systemd:
+    name: dnscrypt-proxy-resolvconf
+  register: _resolvconf_helper
+
+# The systemd module has no reset-failed operation.
+- name: Ubuntu | Clear the resolvconf helper's failed state
+  command: systemctl reset-failed dnscrypt-proxy-resolvconf.service  # noqa: command-instead-of-module
+  changed_when: true
+  when: _resolvconf_helper.status.ActiveState == 'failed'
+
 - name: Ubuntu | Ensure that the dnscrypt-proxy service directory exist
   file:
     path: /etc/systemd/system/dnscrypt-proxy.service.d/
