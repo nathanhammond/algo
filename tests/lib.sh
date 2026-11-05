@@ -140,6 +140,7 @@ for u in wg-quick@wg0 dnscrypt-proxy.socket dnscrypt-proxy netfilter-persistent 
   echo "active $u $(systemctl is-active "$u")"
 done
 echo "failed_units $(systemctl --failed --no-legend | wc -l)"
+echo "failed_names $(systemctl --failed --no-legend --plain | awk '{print $1}' | tr '\n' ' ')"
 echo "peers $(wg show wg0 peers | wc -l)"
 echo "backend $(iptables -V)"
 echo "legacy_rules $(iptables-legacy-save 2>/dev/null | grep -c '^-A')"
@@ -160,6 +161,7 @@ REMOTE
     check "service $u is active" service_active "$u"
   done
   check "no failed systemd units" state_is failed_units 0
+  state_is failed_units 0 || echo "    failed: $(state failed_names)"
   check "WireGuard has $users peers" state_is peers "$users"
   check "iptables uses the nftables backend" has_line nf_tables state backend
   check "no rules in the legacy iptables tables" state_is legacy_rules 0
@@ -188,13 +190,20 @@ wait_for_ssh() {
   return 1
 }
 
+# Changes a re-run may make that come from outside the playbook: updates
+# installed since the last run can leave a reboot pending.
+ALLOWED_CHANGES='common : Reboot if updates need it|common : Wait until the server becomes ready'
+
 # idempotency_checks LOG HOST CONFIG_DIR SNAPSHOT : after a re-run
 idempotency_checks() {
-  local changed
+  local changed unexpected
   changed=$(recap_changed "$1" "$2")
+  # Tasks on localhost (adding the server to the inventory) always report changed
+  unexpected=$(changed_tasks "$1" | grep -v -E "Add the server to an inventory group|Additional variables for the server|$ALLOWED_CHANGES")
   check "re-run succeeded" grep -qE "^$2 +:.* failed=0 " "$WORK/$1"
-  check "re-run changed nothing on the server (changed=$changed)" test "$changed" = 0
-  [ "$changed" = 0 ] || changed_tasks "$1" | sed 's/^/    changed: /'
+  check "re-run changed nothing on the server (changed=$changed)" test -z "$unexpected"
+  changed_tasks "$1" | grep -E "$ALLOWED_CHANGES" | sed 's/^/    allowed: /'
+  [ -z "$unexpected" ] || while read -r t; do echo "    changed: $t"; done <<<"$unexpected"
   check "keys, user index and client configs are unchanged" diff <(snapshot_configs "$3") "$4"
   check "re-run verified the saved host key" fails grep -q 'No SSH host key is saved' "$WORK/$1"
 }
