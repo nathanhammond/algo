@@ -117,8 +117,13 @@ echo "virt $(systemd-detect-virt) $(cat /sys/class/dmi/id/sys_vendor /sys/class/
 echo "clocksource $(cat /sys/devices/system/clocksource/clocksource0/current_clocksource)"
 echo "mem_mb $(awk '/MemTotal/ {printf "%.0f", $2 / 1024}' /proc/meminfo)"
 echo "kernel $(uname -r)"
-a=$(head -1 /proc/stat); sleep 10; b=$(head -1 /proc/stat)
+dev=$(ip -4 route show default | awk '{print $5; exit}')
+s=/sys/class/net/$dev/statistics
+a=$(head -1 /proc/stat); ra=$(cat $s/rx_packets); da=$(cat $s/rx_dropped)
+sleep 10
+b=$(head -1 /proc/stat); rb=$(cat $s/rx_packets); db=$(cat $s/rx_dropped)
 echo "idle_sample $a|$b"
+echo "idle_rx_pps $(( (rb - ra) / 10 )) $(( (db - da) / 10 ))"
 for i in 1 2 3 4 5; do
   openssl speed -mr -seconds 1 -bytes 1420 -evp chacha20-poly1305 2>/dev/null | awk -F: '/^\+F:/ {printf "%.0f\n", $4}'
 done | tr '\n' ' ' | sed 's/^/bench /'; echo
@@ -138,7 +143,8 @@ import sys, openstack
 c = openstack.connect()
 s = c.compute.find_server(sys.argv[1])
 s = s and c.compute.get_server(s.id)
-print(s.host_id, s.flavor.get("original_name") or s.flavor.get("id")) if s else print()' "$NAME" 2>/dev/null)"
+f = s and (s.flavor.get("original_name") or c.compute.get_flavor(s.flavor["id"]).name)
+print(s.host_id, f) if s else print()' "$NAME" 2>/dev/null)"
 fi
 kv "CPU" "$(hw cpu_model), $(hw vcpus) vCPU, $(hw mhz) MHz"
 kv "SIMD for ChaCha20 (WireGuard)" "$(hw simd)"
@@ -147,13 +153,18 @@ kv "Flavor" "${FLAVOR:-unknown (pass --name with OpenStack credentials loaded)}"
 kv "Memory, kernel, clock source" "$(hw mem_mb) MB, $(hw kernel), $(hw clocksource)"
 kv "OpenStack host ID" "${HOST_ID:-unknown (pass --name with OpenStack credentials loaded)}"
 kv "CPU busy / steal while idle (10 s)" "$idle_busy% / $idle_steal%"
+read -r idle_pps idle_drops <<<"$(hw idle_rx_pps)"
+kv "Packets arriving while idle" "$idle_pps/s ($idle_drops/s dropped as unhandled, such as STP)"
 kv "ChaCha20-Poly1305, 1420-byte packets" "$bench_mbs MB/s ($(mbps "$bench_mean") Mbit/s), variation $bench_cv% over 5 runs"
 if awk "BEGIN {exit !($idle_steal > 2)}"; then
   verdict CHANGE "CPU steal is $idle_steal% at idle: the hypervisor is busy with other tenants. Recreate the server (a new one may land elsewhere) and compare host IDs."
 elif awk "BEGIN {exit !($bench_cv > 10)}"; then
   verdict NOTE "CPU speed varied $bench_cv% between runs, a sign of contention. Re-run later; persistent variation means noisy neighbours."
 else
-  verdict OK "No sign of contention."
+  verdict OK "No sign of CPU contention."
+fi
+if [ "${idle_pps:-0}" -gt 2000 ]; then
+  verdict NOTE "$idle_pps packets/s arrive while the server is idle, mostly other tenants' broadcasts on the shared network. Compare with other servers; a much busier segment costs CPU."
 fi
 
 # --- Paths -------------------------------------------------------------------
@@ -373,9 +384,9 @@ if [ "$(ni softnet_dropped)" != 0 ]; then
 fi
 
 # --- Record --------------------------------------------------------------------
-printf '{"time":"%s","name":"%s","ip":"%s","host_id":"%s","flavor":"%s","cpu":"%s","vcpus":%s,"bench_bps":%s,"bench_cv":%s,"steal_idle":%s,"steal_load":%s,"busy_load":%s,"rtt_server_ms":%s,"rtt_tunnel_ms":%s,"direct_bps":%s,"server_bps":%s,"tunnel_down_bps":%s,"tunnel_up_bps":%s,"path_mtu":%s,"tunnel_payload":%s,"dns_cached_ms":%s,"dns_uncached_ms":%s,"dns_tcp":"%s","dns_large_ok":%s,"page_direct_ms":"%s","page_tunnel_ms":"%s","dns_large_ms":%s,"big_packet_loss":"%s","big_packet_ms":"%s","wg_mtu":%s}\n' \
+printf '{"time":"%s","name":"%s","ip":"%s","host_id":"%s","flavor":"%s","cpu":"%s","vcpus":%s,"bench_bps":%s,"bench_cv":%s,"steal_idle":%s,"idle_rx_pps":%s,"steal_load":%s,"busy_load":%s,"rtt_server_ms":%s,"rtt_tunnel_ms":%s,"direct_bps":%s,"server_bps":%s,"tunnel_down_bps":%s,"tunnel_up_bps":%s,"path_mtu":%s,"tunnel_payload":%s,"dns_cached_ms":%s,"dns_uncached_ms":%s,"dns_tcp":"%s","dns_large_ok":%s,"page_direct_ms":"%s","page_tunnel_ms":"%s","dns_large_ms":%s,"big_packet_loss":"%s","big_packet_ms":"%s","wg_mtu":%s}\n' \
   "$(date -u +%FT%TZ)" "$NAME" "$IP" "$HOST_ID" "$FLAVOR" "$(hw cpu_model)" "$(hw vcpus)" "$bench_mean" "$bench_cv" \
-  "$idle_steal" "$load_steal" "$load_busy" "${rtt_server:-0}" "${rtt_tunnel:-0}" "$direct_mean" "$server_mean" "$tunnel_mean" \
+  "$idle_steal" "${idle_pps:-0}" "$load_steal" "$load_busy" "${rtt_server:-0}" "${rtt_tunnel:-0}" "$direct_mean" "$server_mean" "$tunnel_mean" \
   "$up_mean" "$((outer + 28))" "$inner" "${cached:-0}" "$uncached" "$tcp_ok" "$big_ok" "$pd_total" "$pt_total" "$big_ms" "$big_loss" "$big_avg" "$wg_mtu" >>"$RESULTS/perf.jsonl"
 
 section "Earlier runs (tests/results/perf.jsonl)"
