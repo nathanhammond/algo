@@ -94,10 +94,13 @@
     - endpoint_hostname | default('') | length > 0
     - cloudflare_api_token | default('') | length == 0
 
+# daemon_reload: the hardening drop-in may have just changed, and its handler
+# only runs at the flush below, after this start.
 - name: WireGuard enabled and started
-  service:
+  systemd:
     name: "{{ service_name }}"
     state: started
     enabled: true
+    daemon_reload: true
 
 - meta: flush_handlers
