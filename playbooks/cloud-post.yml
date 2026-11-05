@@ -37,7 +37,6 @@
     ansible_python_interpreter: "{% if cloud_instance_ip == 'localhost' %}{{ ansible_playbook_python }}{% else %}/usr/bin/python3{% endif %}"
     algo_provider: "{{ algo_provider }}"
     algo_server_name: "{{ algo_server_name }}"
-    algo_dns_adblocking: "{{ algo_dns_adblocking }}"
     IP_subject_alt_name: "{{ IP_subject_alt_name }}"
     cloudinit: "{{ cloudinit | default(false) }}"
     ansible_ssh_common_args: >-

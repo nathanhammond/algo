@@ -32,7 +32,7 @@
           tags: common
 
         - import_role: {name: dns}
-          when: algo_dns_adblocking | bool or dns_encryption | bool
+          when: dns_encryption | bool
           tags: dns
 
         - import_role: {name: wireguard}

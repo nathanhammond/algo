@@ -5,7 +5,6 @@
   vars:
     defaults:
       server_name: algo
-      dns_adblocking: false
     providers_map:
       - { name: OpenStack (DreamCompute optimised), alias: openstack }
       - { name: Install to existing Ubuntu latest LTS server (for more advanced users), alias: local }
@@ -40,14 +39,6 @@
             - server_name is undefined
             - algo_provider != "local"
 
-        - name: DNS adblocking prompt
-          pause:
-            prompt: |
-              Do you want to enable DNS ad blocking on this VPN server?
-              [y/N]
-          register: _dns_adblocking
-          when: dns_adblocking is undefined
-
         - name: Set facts based on the input
           set_fact:
             algo_server_name: >-
@@ -57,10 +48,5 @@
               else -%}{% set _server = defaults['server_name'] %}{%-
               endif -%}
               {{ _server | regex_replace('(?!\.)(\W|_)', '-') }}
-            algo_dns_adblocking: >-
-              {%- if dns_adblocking is defined -%}{{ dns_adblocking | bool }}{%-
-              elif _dns_adblocking.user_input is defined -%}{{ booleans_map[_dns_adblocking.user_input] | default(defaults['dns_adblocking']) }}{%-
-              else -%}{{ false }}{%-
-              endif -%}
       rescue:
         - include_tasks: playbooks/rescue.yml
