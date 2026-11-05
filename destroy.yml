@@ -11,12 +11,22 @@
 
   tasks:
     - block:
+        # Deleting the server must never leave endpoint_hostname pointing at nothing
+        - name: Verify the endpoint hostname's A record can be removed
+          assert:
+            that: cloudflare_api_token | default('') | length > 0
+            msg: >-
+              endpoint_hostname is set to {{ endpoint_hostname }}, so destroy must remove its A record
+              before deleting the server, and that needs a Cloudflare API token. Run:
+              export CLOUDFLARE_API_TOKEN=<your Cloudflare API token>
+          when: endpoint_hostname | default('') | length > 0
+
         - name: Display destroy plan
           debug:
             msg: >-
               Deleting the server '{{ algo_server_name }}' and its security group{{
               ', and the A record for ' + endpoint_hostname + ' if it points at the server'
-              if endpoint_hostname | default('') | length > 0 and cloudflare_api_token | default('') | length > 0 else '' }}.
+              if endpoint_hostname | default('') | length > 0 else '' }}.
               Local configs are kept.
 
         - name: Confirm destruction

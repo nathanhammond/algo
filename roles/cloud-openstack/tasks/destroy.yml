@@ -1,11 +1,10 @@
 ---
 # Remove endpoint_hostname's A record first, while the server's address is still
 # known. The record is only deleted if it points at this server. A Cloudflare
-# failure stops the destroy before anything is deleted.
+# failure stops the destroy before anything is deleted, and destroy.yml refuses
+# to run without a token when endpoint_hostname is set.
 - name: Remove the endpoint hostname's A record
-  when:
-    - endpoint_hostname | default('') | length > 0
-    - cloudflare_api_token | default('') | length > 0
+  when: endpoint_hostname | default('') | length > 0
   block:
     - name: Look up the server's address
       openstack.cloud.server_info:
@@ -20,15 +19,6 @@
              | selectattr('version', '==', 4) | map(attribute='addr') | first }}
         dns_remove: true
       when: _destroy_server.servers | length == 1
-
-- name: Note that the endpoint hostname was not changed
-  debug:
-    msg: >-
-      {{ endpoint_hostname }} was not changed because CLOUDFLARE_API_TOKEN is not set. If it points
-      at this server, delete or change its A record yourself.
-  when:
-    - endpoint_hostname | default('') | length > 0
-    - cloudflare_api_token | default('') | length == 0
 
 - name: Destroy OpenStack server
   openstack.cloud.server:

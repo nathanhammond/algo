@@ -33,8 +33,9 @@ dns_records:
 `provider: openstack` skips the provider prompt. The other two settings are optional:
 
 - `endpoint_hostname`: client configs connect to this name instead of the server's IP address.
-  If its DNS is on Cloudflare, Algo can manage the A record (see below). Otherwise point the
-  record at the server yourself; each run reports whether the name resolves to that server.
+  If its DNS is on Cloudflare, Algo manages the A record (see below). Otherwise point the record
+  at the server yourself; each run reports whether the name resolves to that server. Destroy
+  always needs the Cloudflare token when this is set.
 - `dns_records`: VPN clients that look up exactly that name get that address, and subdomains are
   not matched.
 
@@ -98,8 +99,10 @@ ssh -i configs/algo.pem -p 4160 algo@<server-ip>
 ```
 
 This deletes the server named `server_name` and its security group after asking for confirmation.
-Local configs are kept. With a Cloudflare token, it first deletes `endpoint_hostname`'s A record
-if that record points at the server; a record pointing at another server is left alone.
+Local configs are kept. When `endpoint_hostname` is set, it first deletes the hostname's A record
+if that record points at the server, so the name never points at a server that no longer exists. A
+record pointing at another server is left alone. This needs `CLOUDFLARE_API_TOKEN`; without it,
+destroy stops before deleting anything.
 
 ## Deploy to an existing Ubuntu server
 
