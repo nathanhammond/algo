@@ -1,6 +1,6 @@
 # Algo VPN (WireGuard on DreamCompute)
 
-A trimmed fork of [Algo VPN](https://github.com/trailofbits/algo). It creates an Ubuntu 24.04
+A trimmed fork of [Algo VPN](https://github.com/trailofbits/algo). It creates an Ubuntu 26.04
 server on DreamHost DreamCompute (OpenStack) and runs a WireGuard VPN on it, with encrypted DNS
 from dnscrypt-proxy. IPsec, SSH tunneling, and the other cloud providers have been removed.
 
@@ -11,6 +11,24 @@ On your computer:
 - [uv](https://docs.astral.sh/uv/): `brew install uv`
 - WireGuard tools, which create the keys: `brew install wireguard-tools`
 - Your DreamCompute openrc file, from the dashboard under Project > API Access
+
+### Ubuntu 26.04 image
+
+DreamCompute's newest public image is Ubuntu 24.04, so `config.cfg` names a private image,
+`Ubuntu-26.04-cloudimg`, made once from Canonical's cloud image. DreamCompute stores images as raw:
+
+```bash
+brew install qemu
+curl -LO https://cloud-images.ubuntu.com/releases/resolute/release/ubuntu-26.04-server-cloudimg-amd64.img
+curl -LO https://cloud-images.ubuntu.com/releases/resolute/release/SHA256SUMS
+shasum -a 256 -c SHA256SUMS --ignore-missing
+qemu-img convert -O raw ubuntu-26.04-server-cloudimg-amd64.img ubuntu-26.04.raw
+source ./<project>-openrc.sh
+uvx --from python-openstackclient openstack image create --private --disk-format raw \
+  --container-format bare --min-disk 4 --file ubuntu-26.04.raw Ubuntu-26.04-cloudimg
+```
+
+To use DreamHost's image instead, set `cloud_providers.openstack.image: Ubuntu-24.04`.
 
 ## Configure
 

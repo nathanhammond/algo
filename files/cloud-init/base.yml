@@ -41,7 +41,7 @@ runcmd:
   - set -x
   - ufw --force reset
   - sudo apt-get remove -y --purge sshguard || true
-  # Ubuntu 24.04 starts sshd from ssh.socket, which only picks up the new
+  # Ubuntu 24.04 and later start sshd from ssh.socket, which only picks up the new
   # Port from sshd_config after systemd generators re-run.
   - systemctl daemon-reload
   - if systemctl is-enabled --quiet ssh.socket; then systemctl restart ssh.socket; fi

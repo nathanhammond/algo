@@ -1,6 +1,6 @@
 # CLAUDE.md - LLM Guidance for Algo VPN (WireGuard on DreamCompute)
 
-A trimmed fork of Algo VPN. It deploys a WireGuard VPN with dnscrypt-proxy to one Ubuntu 24.04
+A trimmed fork of Algo VPN. It deploys a WireGuard VPN with dnscrypt-proxy to one Ubuntu 26.04
 server on DreamHost DreamCompute (OpenStack), or to an existing Ubuntu server (`provider: local`).
 IPsec, SSH tunneling, Apple profiles, ad blocking, and all other cloud providers were removed in
 the first commit of this fork; requests to bring them back belong upstream.
@@ -46,7 +46,7 @@ uv run ansible-playbook main.yml --syntax-check
 uv run ansible-playbook destroy.yml --syntax-check
 ```
 
-There are no unit tests. Verify behavior by deploying to a systemd-enabled Ubuntu 24.04 container
+There are no unit tests. Verify behavior by deploying to systemd-enabled Ubuntu 26.04 and 24.04 containers
 (`provider=local`) and connecting real WireGuard clients, then re-running the playbook to check
 that keys and addresses are unchanged. The OpenStack path can be exercised with test doubles for
 the openstack.cloud modules that return openstacksdk resource dicts.
@@ -242,11 +242,13 @@ For comprehensive diagnostics, see [docs/troubleshooting.md](docs/troubleshootin
 - **`creates:` with `chdir:`**: the shell/command modules evaluate `creates` after changing
   directory. A relative path there must be relative to `chdir`, or every run regenerates keys.
 - **Facts**: `inject_facts_as_vars = False`; read facts from `ansible_facts['...']`.
-- **Ubuntu 24.04 SSH** is socket-activated. Changing the port needs `systemctl daemon-reload`
+- **Ubuntu 24.04+ SSH** is socket-activated. Changing the port needs `systemctl daemon-reload`
   and `systemctl restart ssh.socket`; `files/cloud-init/base.yml` does this.
 - **openstack.cloud 2.x** returns `server`, `images`, `flavors`, `networks`, `security_group`
   (openstacksdk attribute names such as `is_router_external`). The 1.x keys no longer exist.
-- **dnscrypt-proxy 2.0.45** is what Ubuntu 24.04 ships; use 2.0-era configuration keys.
+- **dnscrypt-proxy** is 2.1.14 on Ubuntu 26.04 and 2.0.45 on 24.04. Use keys both accept (check
+  with `dnscrypt-proxy -config <file> -check` on each): 2.1 rejects `fallback_resolver`, 2.0.45
+  rejects `bootstrap_resolvers`, and both accept `fallback_resolvers`.
   `dnscrypt-proxy-resolvconf` is masked so the server keeps resolving through systemd-resolved.
 - **rsyslog**: Ubuntu's `/etc/rsyslog.conf` already loads imuxsock and imklog; loading them again
   in `rsyslog.d` makes `rsyslogd -N1` fail on the next run.
