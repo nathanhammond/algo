@@ -98,7 +98,8 @@ ssh -i configs/algo.pem -p 4160 algo@<server-ip>
 ```
 
 This deletes the server named `server_name` and its security group after asking for confirmation.
-Local configs are kept.
+Local configs are kept. With a Cloudflare token, it first deletes `endpoint_hostname`'s A record
+if that record points at the server; a record pointing at another server is left alone.
 
 ## Deploy to an existing Ubuntu server
 

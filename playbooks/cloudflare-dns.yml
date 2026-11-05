@@ -6,6 +6,7 @@
 #   dns_move          true to repoint the hostname even if it points at another server
 #   dns_project_ips   IPv4 addresses of the project's existing servers (undefined when unknown)
 #   dns_check_only    true to only verify that the token can manage the hostname's zone
+#   dns_remove        true to delete the A record if it points at dns_target_ip (server destroy)
 #
 # Without dns_move, an existing record is only changed when it does not point at
 # another existing server, so deploying a second server never takes the name away
@@ -80,7 +81,9 @@
     - name: Cloudflare | Work out the action
       set_fact:
         _cf_action: >-
-          {%- if _cf_a | length == 0 -%}create
+          {%- if dns_remove | default(false) and _cf_a | length == 1 and _cf_a[0].content == dns_target_ip -%}delete
+          {%- elif dns_remove | default(false) -%}leave
+          {%- elif _cf_a | length == 0 -%}create
           {%- elif _cf_a[0].content == dns_target_ip and not _cf_a[0].proxied -%}none
           {%- elif _cf_a[0].content == dns_target_ip -%}update
           {%- elif dns_move | default(false) -%}update
@@ -113,11 +116,24 @@
       changed_when: true
       no_log: true
 
+    - name: Cloudflare | Delete the A record that points at this server
+      uri:
+        url: "{{ _cf_api }}/zones/{{ _cf_zone.id }}/dns_records/{{ _cf_a[0].id }}"
+        method: DELETE
+        headers:
+          Authorization: "Bearer {{ cloudflare_api_token }}"
+      when: _cf_action == 'delete'
+      changed_when: true
+      no_log: true
+
     - name: Cloudflare | Report the endpoint hostname
       debug:
         msg: >-
           {{ (endpoint_hostname + ' '
-              + {'create': 'now points to ' + dns_target_ip + ' (new A record).',
+              + {'delete': 'no longer points to ' + dns_target_ip + ' (A record deleted).',
+                 'leave': ('has no A record.' if _cf_a | length == 0 else
+                           'points to ' + (_cf_a[0].content | default('')) + ', not ' + dns_target_ip + ', so it was left alone.'),
+                 'create': 'now points to ' + dns_target_ip + ' (new A record).',
                  'update': 'now points to ' + dns_target_ip + ' (was ' + (_cf_a[0].content | default('')) + ').',
                  'none': 'already points to ' + dns_target_ip + '.',
                  'keep': 'still points to ' + (_cf_a[0].content | default('')) + ', which is another existing server, so it was not moved.'

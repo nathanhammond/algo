@@ -21,7 +21,7 @@ main.yml            # preflight checks -> input.yml -> cloud.yml -> server.yml
 input.yml           # prompts, skipped when variables are set in config.cfg or with -e
 cloud.yml           # provisioning on localhost: cloud-pre (SSH key), cloud-openstack or local, cloud-post
 server.yml          # configures the vpn-host: common, dns, wireguard, privacy
-destroy.yml         # deletes the server_name server and its security group
+destroy.yml         # deletes endpoint_hostname's A record if it points here, then the server and security group
 config.cfg          # everything users edit
 roles/
   cloud-openstack/  # security group, flavor/image/network lookup, server, cloud-init
