@@ -33,7 +33,5 @@ verbosity: 1
 
 # Mock custom modules in library/ that ansible-lint can't auto-discover
 # These modules exist and work at runtime, but need to be declared for static analysis
-mock_modules:
-  - x25519_pubkey
 
 # vim: ft=yaml

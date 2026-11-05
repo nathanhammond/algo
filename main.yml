@@ -60,6 +60,19 @@
           You must update the requirements to use this version of Algo.
           Try to run: uv sync
 
+    - name: Check for the WireGuard tools
+      command: wg --version
+      register: _wg_version
+      changed_when: false
+      failed_when: false
+
+    - name: Verify the WireGuard tools are installed
+      assert:
+        that: _wg_version.rc == 0
+        msg: >
+          The wg command is needed to create WireGuard keys on this computer.
+          Install it with: brew install wireguard-tools (macOS) or sudo apt install wireguard-tools (Ubuntu)
+
 - name: Include prompts playbook
   import_playbook: input.yml
 
