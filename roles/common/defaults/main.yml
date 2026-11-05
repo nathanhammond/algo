@@ -1,7 +1,4 @@
 ---
-install_headers: false
-aip_supported_providers:
-  - digitalocean
 snat_aipv4: false
 ipv6_default: "{{ ansible_default_ipv6.address + '/' + ansible_default_ipv6.prefix }}"
 ipv6_subnet_size: "{{ ipv6_default | ansible.utils.ipaddr('size') }}"

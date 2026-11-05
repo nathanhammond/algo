@@ -19,10 +19,6 @@
   notify:
     - restart dnscrypt-proxy
 
-- name: Include DNS adblocking tasks
-  import_tasks: dns_adblocking.yml
-  when: algo_dns_adblocking | bool
-
 - meta: flush_handlers
 
 - name: Ensure dnscrypt-proxy socket is enabled and started
