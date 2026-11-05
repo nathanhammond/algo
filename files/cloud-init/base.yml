@@ -22,9 +22,11 @@ users:
     ssh_authorized_keys:
       - "{{ lookup('file', SSH_keys.public) | string }}"
 
-# The host key made by the deploy, so its first connection can verify the server
+# The host key made by the deploy, so its first connection can verify the server.
+# Only missing types are generated, so this makes no others (an empty list is
+# invalid in cloud-init's schema).
 ssh_deletekeys: true
-ssh_genkeytypes: []
+ssh_genkeytypes: [ed25519]
 ssh_keys:
   ed25519_private: |
 {{ ssh_host_key.private | indent(width=4, first=True) }}
