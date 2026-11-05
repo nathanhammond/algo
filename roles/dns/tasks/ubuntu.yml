@@ -15,6 +15,14 @@
       command: aa-enforce usr.bin.dnscrypt-proxy
       changed_when: false
 
+# The package's helper registers the socket's listen addresses as the server's
+# own DNS. It fails on the IPv6 listener, and the server should keep resolving
+# through systemd-resolved rather than the VPN-only listeners anyway.
+- name: Ubuntu | Disable the dnscrypt-proxy resolvconf helper
+  systemd:
+    name: dnscrypt-proxy-resolvconf
+    masked: true
+
 - name: Ubuntu | Ensure that the dnscrypt-proxy service directory exist
   file:
     path: /etc/systemd/system/dnscrypt-proxy.service.d/
