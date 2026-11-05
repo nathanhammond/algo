@@ -71,9 +71,6 @@ COMMIT
 -A INPUT -i lo -j ACCEPT
 # Accept any packet from an open TCP connection
 -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-# Accept packets using the encapsulation protocol
--A INPUT -p esp -j ACCEPT
--A INPUT -m ah -j ACCEPT
 # rate limit ICMP traffic per source
 -A INPUT -p icmpv6 --icmpv6-type echo-request -m hashlimit --hashlimit-upto 5/s --hashlimit-mode srcip --hashlimit-srcmask 32 --hashlimit-name icmp-echo-drop -j ACCEPT
 # Accept IPSEC/WireGuard traffic to ports {{ subnets | join(',') }}
@@ -96,12 +93,10 @@ COMMIT
 # particular virtual (tun,tap,...) or physical (ethernet) interface.
 
 # Accept DNS traffic to the local DNS resolver from VPN clients only
--A INPUT -s {{ subnets | join(',') }} -d {{ local_service_ipv6 }}/128 -p udp --dport 53 -j ACCEPT
+-A INPUT -i wg0 -s {{ subnets | join(',') }} -d {{ local_service_ipv6 }}/128 -p udp --dport 53 -j ACCEPT
 
 # Drop traffic between VPN clients
 -A FORWARD -s {{ subnets | join(',') }} -d {{ subnets | join(',') }} -j {{ "DROP" if BetweenClients_DROP else "ACCEPT" }}
-# Drop traffic to VPN clients from SSH tunnels
--A OUTPUT -d {{ subnets | join(',') }} -m owner --gid-owner 15000 -j {{ "DROP" if BetweenClients_DROP else "ACCEPT" }}
 
 -A FORWARD -j ICMPV6-CHECK
 -A FORWARD -p tcp --dport 445 -j {{ "DROP" if block_smb else "ACCEPT" }}
@@ -113,7 +108,7 @@ COMMIT
 -A FORWARD -m conntrack --ctstate NEW -s {{ strongswan_network_ipv6 }} -m policy --pol ipsec --dir in -j ACCEPT
 {% endif %}
 {% if wireguard_enabled | bool %}
--A FORWARD -m conntrack --ctstate NEW -s {{ wireguard_network_ipv6 }} -j ACCEPT
+-A FORWARD -i wg0 -m conntrack --ctstate NEW -s {{ wireguard_network_ipv6 }} -j ACCEPT
 {% endif %}
 
 # Use the ICMPV6-CHECK chain, described above

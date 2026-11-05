@@ -116,8 +116,18 @@
       - iptables
       - iptables-persistent
       - cron
-    # yamllint disable-line rule:line-length
-    sysctl: "{{ [{'item': 'net.ipv4.ip_forward', 'value': 1}, {'item': 'net.ipv4.conf.all.forwarding', 'value': 1}, {'item': 'net.ipv4.conf.all.route_localnet', 'value': 1}] + ([{'item': 'net.ipv6.conf.all.forwarding', 'value': 1}] if ipv6_support | bool else []) }}"
+    # Strict reverse-path filtering drops packets whose source address would not be
+    # routed back out the interface they arrived on, such as VPN addresses spoofed
+    # from outside. Linux uses the larger of the "all" and per-interface values,
+    # and Ubuntu sets both to 2 (loose), so set all, default and the public one.
+    sysctl: >-
+      {{ [{'item': 'net.ipv4.ip_forward', 'value': 1},
+          {'item': 'net.ipv4.conf.all.forwarding', 'value': 1},
+          {'item': 'net.ipv4.conf.all.route_localnet', 'value': 1},
+          {'item': 'net.ipv4.conf.all.rp_filter', 'value': 1},
+          {'item': 'net.ipv4.conf.default.rp_filter', 'value': 1},
+          {'item': 'net.ipv4.conf.' + ansible_facts['default_ipv4']['interface'] + '.rp_filter', 'value': 1}]
+         + ([{'item': 'net.ipv6.conf.all.forwarding', 'value': 1}] if ipv6_support | bool else []) }}
 
 - name: Install packages (batch optimization)
   include_tasks: packages.yml

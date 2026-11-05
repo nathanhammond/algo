@@ -65,9 +65,6 @@ COMMIT
 -A INPUT -i lo -j ACCEPT
 # Accept any packet from an open TCP connection
 -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-# Accept packets using the encapsulation protocol
--A INPUT -p esp -j ACCEPT
--A INPUT -p ah -j ACCEPT
 # rate limit ICMP traffic per source
 -A INPUT -p icmp --icmp-type echo-request -m hashlimit --hashlimit-upto 5/s --hashlimit-mode srcip --hashlimit-srcmask 32 --hashlimit-name icmp-echo-drop -j ACCEPT
 # Accept IPSEC/WireGuard traffic to ports {{ subnets | join(',') }}
@@ -86,17 +83,13 @@ COMMIT
 # particular virtual (tun,tap,...) or physical (ethernet) interface.
 
 # Accept DNS traffic to the local DNS resolver from VPN clients only
--A INPUT -s {{ subnets | join(',') }} -d {{ local_service_ip }} -p udp --dport 53 -j ACCEPT
+-A INPUT -i wg0 -s {{ subnets | join(',') }} -d {{ local_service_ip }} -p udp --dport 53 -j ACCEPT
 
 # Drop traffic between VPN clients
 -A FORWARD -s {{ subnets | join(',') }} -d {{ subnets | join(',') }} -j {{ "DROP" if BetweenClients_DROP else "ACCEPT" }}
-# Drop traffic to VPN clients from SSH tunnels
--A OUTPUT -d {{ subnets | join(',') }} -m owner --gid-owner 15000 -j {{ "DROP" if BetweenClients_DROP else "ACCEPT" }}
 
 # Drop traffic to the link-local network
 -A FORWARD -s {{ subnets | join(',') }} -d 169.254.0.0/16 -j DROP
-# Drop traffic to the link-local network from SSH tunnels
--A OUTPUT -d 169.254.0.0/16 -m owner --gid-owner 15000 -j DROP
 
 # Forward any packet that's part of an established connection
 -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
@@ -113,7 +106,7 @@ COMMIT
 
 {% if wireguard_enabled | bool %}
 # Forward any traffic from the WireGuard VPN network
--A FORWARD -m conntrack --ctstate NEW -s {{ wireguard_network_ipv4 }} -j ACCEPT
+-A FORWARD -i wg0 -m conntrack --ctstate NEW -s {{ wireguard_network_ipv4 }} -j ACCEPT
 {% endif %}
 
 COMMIT
