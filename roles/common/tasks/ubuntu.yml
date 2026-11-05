@@ -1,7 +1,7 @@
 ---
 - name: Gather facts
   setup:
-- name: Cloud only tasks
+- name: Install updates
   block:
     - name: Install software updates
       apt:
@@ -14,52 +14,23 @@
       delay: 10
 
     - name: Check if reboot is required
-      shell: |
-        set -o pipefail
-        if [[ -e /var/run/reboot-required ]]; then
-          # Check if kernel was updated (most critical reboot reason)
-          if grep -q "linux-image\|linux-generic\|linux-headers" /var/log/dpkg.log.1 /var/log/dpkg.log 2>/dev/null; then
-            echo "kernel-updated"
-          else
-            echo "optional"
-          fi
-        else
-          echo "no"
-        fi
-      args:
-        executable: /bin/bash
+      stat:
+        path: /var/run/reboot-required
       register: reboot_required
-      changed_when: false
 
-    - name: Reboot (kernel updated or performance optimization disabled)
+    - name: Reboot if updates need it
       shell: sleep 2 && shutdown -r now "Ansible updates triggered"
       async: 1
       poll: 0
-      when: >
-        reboot_required is defined and (
-          reboot_required.stdout == 'kernel-updated' or
-          (reboot_required.stdout == 'optional' and not performance_skip_optional_reboots|default(false))
-        )
+      when: reboot_required.stat.exists
       changed_when: true
       failed_when: false
-
-    - name: Skip reboot (performance optimization enabled)
-      debug:
-        msg: "Skipping reboot - performance optimization enabled. No kernel updates detected."
-      when: >
-        reboot_required is defined and
-        reboot_required.stdout == 'optional' and
-        performance_skip_optional_reboots|default(false)
 
     - name: Wait until the server becomes ready...
       wait_for_connection:
         delay: 20
         timeout: 320
-      when: >
-        reboot_required is defined and (
-          reboot_required.stdout == 'kernel-updated' or
-          (reboot_required.stdout == 'optional' and not performance_skip_optional_reboots|default(false))
-        )
+      when: reboot_required.stat.exists
       become: false
 
 - name: Include unattended upgrades configuration
@@ -129,9 +100,8 @@
           {'item': 'net.ipv4.conf.' + ansible_facts['default_ipv4']['interface'] + '.rp_filter', 'value': 1}]
          + ([{'item': 'net.ipv6.conf.all.forwarding', 'value': 1}] if ipv6_support | bool else []) }}
 
-- name: Install packages (batch optimization)
+- name: Install packages
   include_tasks: packages.yml
-  when: performance_parallel_packages | default(true)
 
 - name: Install iptables packages
   apt:

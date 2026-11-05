@@ -1,13 +1,5 @@
 ---
-- name: Check the system
-  raw: uname -a
-  register: OS
-  changed_when: false
-  tags:
-    - update-users
-
 - include_tasks: ubuntu.yml
-  when: '"Ubuntu" in OS.stdout or "Linux" in OS.stdout'
 
 # Include facts separately - always runs to ensure OS detection facts are available
 - include_tasks: facts.yml

@@ -1,28 +1,7 @@
 ---
-- name: Initialize package lists
-  set_fact:
-    algo_packages: "{{ tools | default([]) if not performance_preinstall_packages | default(false) else [] }}"
-  when: performance_parallel_packages | default(true)
-
-- name: Add WireGuard packages
-  set_fact:
-    algo_packages: "{{ algo_packages + ['wireguard'] }}"
-  when:
-    - performance_parallel_packages | default(true)
-
-- name: Add DNS packages
-  set_fact:
-    algo_packages: "{{ algo_packages + ['dnscrypt-proxy'] }}"
-  when:
-    - performance_parallel_packages | default(true)
-    - dns_encryption | bool
-
-- name: Install all packages in batch (performance optimization)
+- name: Install packages
   apt:
-    name: "{{ algo_packages | unique }}"
+    name: "{{ tools + ['wireguard'] + (['dnscrypt-proxy'] if dns_encryption | bool else []) }}"
     state: present
     update_cache: true
     install_recommends: true
-  when:
-    - performance_parallel_packages | default(true)
-    - algo_packages | length > 0

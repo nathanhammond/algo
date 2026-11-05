@@ -27,15 +27,12 @@
 
       Type 'yes' to confirm you understand the risks and want to proceed:
   register: _local_warning_confirm
-  when:
-    - not tests | default(false) | bool
-    - not local_install_confirmed | default(false) | bool
+  when: not local_install_confirmed | default(false) | bool
 
 - name: Abort if not confirmed
   fail:
     msg: "Installation aborted by user. Your server was not modified."
   when:
-    - not tests | default(false) | bool
     - not local_install_confirmed | default(false) | bool
     - _local_warning_confirm.user_input | default('') | lower != 'yes'
 

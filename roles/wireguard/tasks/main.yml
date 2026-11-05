@@ -1,7 +1,6 @@
 ---
-- name: Include tasks for Debian/Ubuntu
+- name: Include tasks for Ubuntu
   include_tasks: ubuntu.yml
-  when: is_debian_based | bool
   tags: always
 
 
@@ -62,7 +61,7 @@
     - name: WireGuard configured
       template:
         src: server.conf.j2
-        dest: "{{ config_prefix | default('/') }}etc/wireguard/{{ wireguard_interface }}.conf"
+        dest: "/etc/wireguard/{{ wireguard_interface }}.conf"
         mode: "0600"
       diff: false
       notify: restart wireguard
