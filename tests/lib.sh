@@ -157,7 +157,7 @@ REMOTE
   check "iptables uses the nftables backend" has_line nf_tables state backend
   check "no rules in the legacy iptables tables" state_is legacy_rules 0
   check "INPUT drops by default" state_is input_policy "-P INPUT DROP"
-  check "DNS is accepted only from wg0" state_is dns_rule 1
+  check "DNS (UDP and TCP) is accepted only from wg0" state_is dns_rule 2
   check "strict reverse-path filtering" state_is rp_filter 1
   check "IP forwarding is on" state_is ip_forward 1
   check "automatic reboots are on" state_is reboot true

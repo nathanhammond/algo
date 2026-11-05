@@ -36,8 +36,9 @@ COMMIT
 -A INPUT -p udp -m multiport --dports {{ ports | join(',') }} -j ACCEPT
 # SSH
 -A INPUT -p tcp --dport {{ ansible_ssh_port }} -m conntrack --ctstate NEW -j ACCEPT
-# DNS to the local resolver, from VPN clients only
+# DNS to the local resolver, from VPN clients only. TCP carries answers too large for UDP.
 -A INPUT -i wg0 -s {{ vpn }} -d {{ local_service_ip }} -p udp --dport 53 -j ACCEPT
+-A INPUT -i wg0 -s {{ vpn }} -d {{ local_service_ip }} -p tcp --dport 53 -j ACCEPT
 
 # Traffic between VPN clients
 -A FORWARD -s {{ vpn }} -d {{ vpn }} -j {{ "DROP" if BetweenClients_DROP else "ACCEPT" }}

@@ -52,8 +52,9 @@ COMMIT
 # DHCPv6 replies to this server
 -A INPUT -m conntrack --ctstate NEW -m udp -p udp --dport 546 -d fe80::/64 -j ACCEPT
 
-# DNS to the local resolver, from VPN clients only
+# DNS to the local resolver, from VPN clients only. TCP carries answers too large for UDP.
 -A INPUT -i wg0 -s {{ vpn }} -d {{ local_service_ipv6 }}/128 -p udp --dport 53 -j ACCEPT
+-A INPUT -i wg0 -s {{ vpn }} -d {{ local_service_ipv6 }}/128 -p tcp --dport 53 -j ACCEPT
 
 # Traffic between VPN clients
 -A FORWARD -s {{ vpn }} -d {{ vpn }} -j {{ "DROP" if BetweenClients_DROP else "ACCEPT" }}
