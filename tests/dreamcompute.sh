@@ -40,7 +40,7 @@ fi
 SSH_PORT=$(sed -n 's/^ssh_port: *//p' "$REPO/config.cfg")
 SSH_KEY="$REPO/configs/algo.pem"
 CLOUD=true
-CLIENTS=(algo-test-c1 algo-test-c2 algo-test-outside)
+CLIENTS=(algo-dc-c1 algo-dc-c2 algo-dc-outside)
 TAG="dreamcompute-$NAME"
 
 server_exists() {
@@ -77,18 +77,18 @@ fi
 
 log "From outside the tunnel"
 build_client_image && ensure_network
-client_down algo-test-outside
-docker run -d --name algo-test-outside --network "$NET" "$CLIENT_IMAGE" >/dev/null
-tcp_open() { docker exec algo-test-outside timeout 5 bash -c "exec 3<>/dev/tcp/$IP/$1"; }
-check "SSH answers on $SSH_PORT" has_line '^SSH-2\.0-' docker exec algo-test-outside timeout 5 bash -c "exec 3<>/dev/tcp/$IP/$SSH_PORT; head -1 <&3"
+client_down algo-dc-outside
+docker run -d --name algo-dc-outside --network "$NET" "$CLIENT_IMAGE" >/dev/null
+tcp_open() { docker exec algo-dc-outside timeout 5 bash -c "exec 3<>/dev/tcp/$IP/$1"; }
+check "SSH answers on $SSH_PORT" has_line '^SSH-2\.0-' docker exec algo-dc-outside timeout 5 bash -c "exec 3<>/dev/tcp/$IP/$SSH_PORT; head -1 <&3"
 for port in 22 53 80 443; do check "TCP $port is closed" fails tcp_open "$port"; done
-check "DNS is not answered from outside" fails docker exec algo-test-outside dig +time=3 +tries=1 @"$IP" example.com
+check "DNS is not answered from outside" fails docker exec algo-dc-outside dig +time=3 +tries=1 @"$IP" example.com
 
 log "Server and tunnel"
 server_checks 3
-client_up algo-test-c1 "$WG/alpha.conf"
-client_up algo-test-c2 "$WG/beta.conf"
-tunnel_checks algo-test-c1 algo-test-c2 "$WG/alpha.conf" "$IP"
+client_up algo-dc-c1 "$WG/alpha.conf"
+client_up algo-dc-c2 "$WG/beta.conf"
+tunnel_checks algo-dc-c1 algo-dc-c2 "$WG/alpha.conf" "$IP"
 
 log "Re-run (idempotency)"
 snapshot_configs "$WG" >"$WORK/$TAG-snapshot"
@@ -102,6 +102,6 @@ sleep 20
 check "server accepts SSH after the reboot" wait_for_ssh 600
 check "the server really rebooted" fails test "$(ssh_server cat /proc/sys/kernel/random/boot_id)" = "$boot_before"
 server_checks 3
-tunnel_checks algo-test-c1 algo-test-c2 "$WG/alpha.conf" "$IP"
+tunnel_checks algo-dc-c1 algo-dc-c2 "$WG/alpha.conf" "$IP"
 
 summary
