@@ -57,7 +57,6 @@
     port: "{{ ansible_ssh_port | default(22) }}"
     host: "{{ cloud_instance_ip }}"
     search_regex: OpenSSH
-    delay: 10
     timeout: 900
     state: present
   when: cloud_instance_ip != "localhost"
@@ -67,9 +66,8 @@
 
 - name: Wait for target connection to become reachable/usable
   wait_for_connection:
-    delay: 10         # Wait 10 seconds before first attempt (conservative)
-    timeout: 480      # Reduce from 600 to 480 seconds (8 minutes - safer)
-    sleep: 10         # Check every 10 seconds (less aggressive polling)
+    timeout: 480
+    sleep: 10         # Between attempts, when the first one fails
   delegate_to: "{{ item }}"
   loop: "{{ groups['vpn-host'] }}"
   when: cloud_instance_ip != "localhost"
