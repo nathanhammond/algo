@@ -245,9 +245,11 @@ For comprehensive diagnostics, see [docs/troubleshooting.md](docs/troubleshootin
   directory. A relative path there must be relative to `chdir`, or every run regenerates keys.
 - **Secrets in output**: template tasks that write keys (`wg0.conf`, client `.conf`) set
   `diff: false`, and tasks whose arguments or results contain keys or tokens use `no_log: true`.
-- **SSH host keys** are checked against `configs/<ip>/known_hosts`. New DreamCompute servers get
-  a host key made on the controller and passed in user-data (so that task is `no_log`); other
-  servers use `StrictHostKeyChecking=accept-new` on first contact. Never set
+- **SSH host keys** are checked against `configs/<ip>/known_hosts`. New DreamCompute servers
+  generate their own key; cloud-init's first `runcmd` writes `ALGO-SSH-HOST-KEY <key>` to
+  `/dev/console`, and `roles/cloud-openstack/files/console_host_key.py` reads it from the console
+  log (polling from 200 s after creation). Other servers use `StrictHostKeyChecking=accept-new`
+  on first contact. Never set
   `UserKnownHostsFile` in `ansible.cfg`'s `ssh_args`: OpenSSH uses the first value given.
 - **Facts**: `inject_facts_as_vars = False`; read facts from `ansible_facts['...']`.
 - **Ubuntu 24.04+ SSH** is socket-activated. Changing the port needs `systemctl daemon-reload`

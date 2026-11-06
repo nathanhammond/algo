@@ -80,40 +80,6 @@
     name: "{{ algo_server_name }}"
   register: os_existing_server
 
-# The SSH host key is made here and given to cloud-init, so the first
-# connection can verify the server instead of trusting whatever answers.
-- name: Create the server's SSH host key
-  when: os_existing_server.servers | length == 0
-  block:
-    - name: Make a temporary directory for the host key
-      tempfile:
-        state: directory
-      register: _host_key_dir
-
-    - name: Generate the host key
-      command: ssh-keygen -q -t ed25519 -N "" -C "{{ algo_server_name }}" -f "{{ _host_key_dir.path }}/key"
-      changed_when: true
-
-    - name: Read the host key
-      slurp:
-        src: "{{ _host_key_dir.path }}/{{ item }}"
-      loop: [key, key.pub]
-      register: _host_key_files
-      no_log: true
-
-    - name: Remember the host key
-      set_fact:
-        ssh_host_key:
-          private: "{{ _host_key_files.results[0].content | b64decode }}"
-          public: "{{ _host_key_files.results[1].content | b64decode | trim }}"
-      no_log: true
-  always:
-    - name: Remove the temporary host key files
-      file:
-        path: "{{ _host_key_dir.path }}"
-        state: absent
-      when: _host_key_dir.path is defined
-
 # DreamCompute's Nova predates API microversion 2.52 and rejects the tags field.
 # openstack.cloud.server always sends tags (it rejects null and defaults to []),
 # so create the server through openstacksdk directly; resource sends only the
@@ -135,7 +101,7 @@
     wait: true
   register: os_server
   when: os_existing_server.servers | length == 0
-  # user_data contains the SSH host private key
+  # The response includes the server's generated admin password
   no_log: true
 
 - set_fact:
@@ -149,6 +115,22 @@
 - name: Save the new server's SSH host key
   when: os_server is not skipped
   block:
+    # cloud-init writes the key to the console once it has installed updates,
+    # about 285 s after the server is created
+    - name: Wait for the server to write its SSH host key
+      pause:
+        seconds: 200
+
+    - name: Read the SSH host key from the server's console log
+      command: "{{ ansible_playbook_python }} -I {{ role_path }}/files/console_host_key.py {{ os_server.resource.id }}"
+      register: _console_host_key
+      # 1 means not written yet; 0 found it, 2 found something wrong
+      until: _console_host_key.rc != 1
+      retries: 70
+      delay: 10
+      changed_when: false
+      failed_when: _console_host_key.rc != 0
+
     - name: Ensure the config directory exists
       file:
         path: configs/{{ cloud_instance_ip }}
@@ -158,6 +140,6 @@
     # Replaces any key saved for a destroyed server that had the same address
     - name: Save the host key to known_hosts
       copy:
-        content: "{{ ('[' + cloud_instance_ip + ']:' + ssh_port | string) if ssh_port | int != 22 else cloud_instance_ip }} {{ ssh_host_key.public }}\n"
+        content: "{{ ('[' + cloud_instance_ip + ']:' + ssh_port | string) if ssh_port | int != 22 else cloud_instance_ip }} {{ _console_host_key.stdout }}\n"
         dest: configs/{{ cloud_instance_ip }}/known_hosts
         mode: "0600"

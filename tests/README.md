@@ -22,7 +22,8 @@ this computer's CPU and network and would skew its measurements.
 ## What the end-to-end tests check
 
 - **Deploy:** a fresh server deploys without errors, and its SSH host key is saved before
-  (DreamCompute) or on (Docker) the first connection.
+  (DreamCompute, read from the console log; no private key is sent in user data) or on
+  (Docker) the first connection.
 - **Server:** WireGuard, dnscrypt-proxy, netfilter-persistent, rsyslog and cron are running with
   no failed units. The firewall uses the nftables backend, drops by default and accepts DNS
   only from `wg0`. Reverse-path filtering is strict, automatic reboots are set for 21:00

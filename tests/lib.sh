@@ -189,6 +189,7 @@ echo "query_log_lines $(cat /var/log/dnscrypt-proxy/query.log /var/log/dnscrypt-
 echo "rsyslog $(rsyslogd -N1 >/dev/null 2>&1 && echo valid || echo invalid)"
 echo "bashrc_blocks $(grep -c 'BEGIN ALGO: disable bash history' /root/.bashrc)"
 echo "x11 $(sshd -T 2>/dev/null | sed -n 's/^x11forwarding //p')"
+echo "userdata_private_keys $(grep -c 'PRIVATE KEY' /var/lib/cloud/instance/user-data.txt 2>/dev/null)"
 echo "apparmor_dnscrypt $(aa-status 2>/dev/null | sed -n '/in enforce mode/,/in complain mode/p' | grep -c dnscrypt-proxy)"
 REMOTE
 )
@@ -212,6 +213,7 @@ REMOTE
   if [ "${CLOUD:-false}" = true ]; then
     check "X11 forwarding is off" state_is x11 no
     check "AppArmor enforces dnscrypt-proxy" fails state_is apparmor_dnscrypt 0
+    check "no private key was sent in user data" state_is userdata_private_keys 0
   fi
 }
 

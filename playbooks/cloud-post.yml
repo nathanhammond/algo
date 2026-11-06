@@ -15,7 +15,8 @@
     path: configs/{{ IP_subject_alt_name }}/known_hosts
   register: _known_hosts
 
-# New DreamCompute servers have their key saved before they boot. Otherwise
+# New DreamCompute servers have their key read from their console log before the
+# first connection. Otherwise
 # (provider: local, or a server deployed before keys were saved) the first
 # connection trusts the key it is shown and saves it; later ones must match.
 - name: Note that the server's SSH host key is not known yet

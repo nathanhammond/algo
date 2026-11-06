@@ -111,8 +111,9 @@ ssh -i configs/algo.pem -p 4160 -o UserKnownHostsFile=configs/<server-ip>/known_
 ```
 
 `configs/<server-ip>/known_hosts` holds the server's SSH host key, and every run checks it. A new
-DreamCompute server's key is made by the deploy and saved before the server boots. For other
-servers the first run saves the key it is shown. If you rebuild a server at the same address,
+DreamCompute server makes its own key and writes the public half to its console, which the
+deploy reads through the OpenStack API before connecting; the private key never leaves the
+server. For other servers the first run saves the key it is shown. If you rebuild a server at the same address,
 delete that file so the next run saves the new key.
 
 ## Destroy

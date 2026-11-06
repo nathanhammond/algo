@@ -22,15 +22,10 @@ users:
     ssh_authorized_keys:
       - "{{ lookup('file', SSH_keys.public) | string }}"
 
-# The host key made by the deploy, so its first connection can verify the server.
-# Only missing types are generated, so this makes no others (an empty list is
-# invalid in cloud-init's schema).
+# The server makes its own SSH host key, so the private half never leaves it:
+# the image's keys are deleted and only an ed25519 key is generated.
 ssh_deletekeys: true
 ssh_genkeytypes: [ed25519]
-ssh_keys:
-  ed25519_private: |
-{{ ssh_host_key.private | indent(width=4, first=True) }}
-  ed25519_public: {{ ssh_host_key.public }}
 
 write_files:
   - path: /etc/ssh/sshd_config
@@ -38,6 +33,10 @@ write_files:
 {{ lookup('template', 'files/cloud-init/sshd_config') | string | indent(width=6, first=True) }}
 
 runcmd:
+  # The deploy reads the host key from the console log through the OpenStack API,
+  # so its first connection can verify the server. This writes it as one line with
+  # a fixed prefix, straight to the console (ttyS0 is what the API returns).
+  - printf 'ALGO-SSH-HOST-KEY %s\n' "$(cut -d ' ' -f 1,2 /etc/ssh/ssh_host_ed25519_key.pub)" > /dev/console
   - set -x
   - ufw --force reset
   - sudo apt-get remove -y --purge sshguard || true
