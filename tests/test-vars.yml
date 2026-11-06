@@ -10,3 +10,5 @@ dns_records:
 endpoint_hostname: ""
 dns_force_dnscrypt: true
 cloudflare_api_token: ""
+# Never the shared keys in configs/default: tests/docker.sh gives its own shared directory
+wireguard_shared_pki: ""

@@ -1,7 +1,15 @@
 ---
 wireguard_PersistentKeepalive: 25
 wireguard_config_path: configs/{{ IP_subject_alt_name }}/wireguard
-wireguard_pki_path: "{{ wireguard_config_path }}/.pki"
+wireguard_shared_pki: ""
+# Keys and the user list: shared by every server (configs/<wireguard_shared_pki>), or
+# this server's own
+wireguard_pki_path: >-
+  {{ ('configs/' + wireguard_shared_pki + '/wireguard/.pki') if wireguard_shared_pki | length > 0
+     else (wireguard_config_path + '/.pki') }}
+# The name of the server's own key pair in wireguard_pki_path. Shared keys use one name
+# for every server, which no user can have (user names start with a letter or digit).
+wireguard_server_key: "{{ '_server' if wireguard_shared_pki | length > 0 else IP_subject_alt_name }}"
 wireguard_interface: wg0
 wireguard_port_avoid: 53
 wireguard_port_actual: 51820

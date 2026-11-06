@@ -55,6 +55,9 @@ NET_SUBNET=172.30.$N.0/24
 # IPv6 lets the server route clients' IPv6 traffic, so the IPv6 checks run
 NET_SUBNET6=fd00:a160:$N::/64
 CONFIGS="$REPO/configs/$SERVER_IP"
+# Keys shared the way every real server shares configs/default, in a directory of the suite's own
+SHARED="$SUITE-shared"
+SHARED_PKI="$REPO/configs/$SHARED/wireguard/.pki"
 WG="$CONFIGS/wireguard"
 SSH_KEY="$WORK/$SUITE-ssh-key"
 SSH_TARGET=algo@127.0.0.1
@@ -65,13 +68,13 @@ C1=algo-$SUITE-c1 C2=algo-$SUITE-c2 C3=algo-$SUITE-c3
 CLIENTS=("$C1" "$C2" "$C3")
 DEPLOY_ARGS=(-e provider=local -e server=127.0.0.1 -e "endpoint=$SERVER_IP" -e ssh_user=algo
   -e local_install_confirmed=true -e "ansible_ssh_port=$SSH_PORT" -e "ansible_ssh_private_key_file=$SSH_KEY"
-  -e apparmor_enabled=false)
+  -e apparmor_enabled=false -e "wireguard_shared_pki=$SHARED")
 TAG="docker-$UBUNTU"
 
 cleanup() {
   if [ "$KEEP" = false ]; then
     docker rm -f "$SERVER" "${CLIENTS[@]}" >/dev/null 2>&1
-    rm -rf "$CONFIGS"
+    rm -rf "$CONFIGS" "${REPO:?}/configs/$SHARED"
   fi
   unlock
 }
@@ -109,13 +112,17 @@ build_client_image || exit 1
 ensure_network
 
 log "Booting a fresh server"
-rm -rf "$CONFIGS"
+rm -rf "$CONFIGS" "${REPO:?}/configs/$SHARED"
 check "server booted" boot_server
 
 log "First deploy"
 deploy "$TAG-1.log" "${DEPLOY_ARGS[@]}"
 check "deploy succeeded" grep -qE "^127\.0\.0\.1 +:.* failed=0 " "$WORK/$TAG-1.log"
 check "the server's host key was saved on first contact" test -s "$KNOWN_HOSTS"
+check "client keys come from the shared directory" grep -qxF "PrivateKey = $(cat "$SHARED_PKI/private/alpha" 2>/dev/null)" "$WG/alpha.conf"
+check "the server key is the shared one" test "$(ssh_server sudo wg show wg0 public-key 2>/dev/null)" = "$(cat "$SHARED_PKI/public/_server" 2>/dev/null)"
+check "the user list is the shared one" test "$(cat "$SHARED_PKI/index.txt" 2>/dev/null)" = "$(printf 'alpha\nbeta\ngamma')"
+check "no keys are kept per server" test ! -e "$WG/.pki"
 server_checks 3
 client_up "$C1" "$WG/alpha.conf"
 client_up "$C2" "$WG/beta.conf"
@@ -123,9 +130,9 @@ tunnel_checks "$C1" "$C2" "$WG/alpha.conf"
 
 log "Re-run (idempotency)"
 daily_cleanup_checks
-snapshot_configs "$WG" >"$WORK/$TAG-snapshot"
+snapshot_configs "$WG" "$SHARED_PKI" >"$WORK/$TAG-snapshot"
 deploy "$TAG-2.log" "${DEPLOY_ARGS[@]}"
-idempotency_checks "$TAG-2.log" 127.0.0.1 "$WG" "$WORK/$TAG-snapshot"
+idempotency_checks "$TAG-2.log" 127.0.0.1 "$WORK/$TAG-snapshot" "$WG" "$SHARED_PKI"
 
 log "Remove beta, add delta"
 alpha_before=$(shasum <"$WG/alpha.conf")
@@ -133,7 +140,7 @@ deploy "$TAG-3.log" "${DEPLOY_ARGS[@]}" -e '{"users": ["alpha", "gamma", "delta"
 check "deploy succeeded" grep -qE "^127\.0\.0\.1 +:.* failed=0 " "$WORK/$TAG-3.log"
 check "alpha's config is unchanged" test "$(shasum <"$WG/alpha.conf")" = "$alpha_before"
 check "delta got the next address (10.49.0.5)" grep -q '^Address = 10\.49\.0\.5' "$WG/delta.conf"
-check "beta stays in the user index, so addresses never shift" grep -qx beta "$WG/.pki/index.txt"
+check "beta stays in the user index, so addresses never shift" grep -qx beta "$SHARED_PKI/index.txt"
 server_checks 3
 check "beta can no longer use the VPN" fails docker exec "$C2" ping -c2 -W3 1.1.1.1
 client_up "$C3" "$WG/delta.conf"

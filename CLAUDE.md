@@ -32,7 +32,8 @@ roles/
   wireguard/        # keys via the wg CLI on the controller, wg0.conf, client .conf + QR
   privacy/          # log retention/filtering, history clearing, cleanup
 files/cloud-init/   # user-data template and sshd_config for new servers
-configs/<ip>/wireguard/  # client configs; .pki/ holds keys (same layout as upstream Algo)
+configs/<ip>/wireguard/  # client configs for each server
+configs/default/wireguard/.pki/  # keys and user list every server shares (wireguard_shared_pki)
 ```
 
 Users are added and removed by re-running `./algo`; there is no separate users playbook.
@@ -262,8 +263,12 @@ For comprehensive diagnostics, see [docs/troubleshooting.md](docs/troubleshootin
 ## Fork-Specific Gotchas
 
 - **Re-runs must be idempotent.** They are how users are edited. Existing keys in
-  `configs/<ip>/wireguard/.pki/{private,public,preshared}/` are never regenerated, and `index.txt`
-  is only appended to, so addresses never shift.
+  `wireguard_pki_path` (`configs/default/wireguard/.pki`, shared by every server, or
+  `configs/<ip>/wireguard/.pki` with `wireguard_shared_pki` empty) are never regenerated, and
+  `index.txt` is only appended to, so addresses never shift. Shared keys name the server's key
+  pair `_server` (no user name can start with `_`); per-server keys use the server's address.
+  Tests never use `configs/default`: test-vars empties it, and `tests/docker.sh` shares a
+  directory of its own.
 - **`creates:` with `chdir:`**: the shell/command modules evaluate `creates` after changing
   directory. A relative path there must be relative to `chdir`, or every run regenerates keys.
 - **Secrets in output**: template tasks that write keys (`wg0.conf`, client `.conf`) set

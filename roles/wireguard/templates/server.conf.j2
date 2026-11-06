@@ -5,7 +5,7 @@ ListenPort = {{ wireguard_port_actual if wireguard_port | int == wireguard_port_
 # the public interface (8820 with DreamCompute's jumbo frames), and packets that fit
 # wg0 but not the client leave as oversized tunnel packets that fragment on the way.
 MTU = {{ 1420 - reduce_mtu | int }}
-PrivateKey = {{ lookup('file', wireguard_pki_path + '/private/' + IP_subject_alt_name) }}
+PrivateKey = {{ lookup('file', wireguard_pki_path + '/private/' + wireguard_server_key) }}
 SaveConfig = false
 
 {% for u in wireguard_users %}

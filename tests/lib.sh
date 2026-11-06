@@ -63,8 +63,10 @@ changed_tasks() {
 }
 
 # Files that must never change across re-runs: keys, the user index, client configs
+# snapshot_configs DIR... : checksums of every file in each DIR
 snapshot_configs() {
-  (cd "$1" && find . -type f ! -name '*.png' | sort | xargs shasum)
+  local d
+  for d in "$@"; do (cd "$d" && find . -type f ! -name '*.png' | sort | xargs shasum); done
 }
 
 build_client_image() {
@@ -293,16 +295,17 @@ REMOTE
   check "the daily cleanup empties btmp" has_line '^/var/log/btmp 0 660 root:utmp$' echo "$out"
 }
 
-# idempotency_checks LOG HOST CONFIG_DIR SNAPSHOT : after a re-run
+# idempotency_checks LOG HOST SNAPSHOT DIR... : after a re-run; SNAPSHOT is snapshot_configs DIR...
 idempotency_checks() {
-  local changed unexpected
-  changed=$(recap_changed "$1" "$2")
+  local log=$1 host=$2 snapshot=$3 changed unexpected
+  shift 3
+  changed=$(recap_changed "$log" "$host")
   # Tasks on localhost (adding the server to the inventory) always report changed
-  unexpected=$(changed_tasks "$1" | grep -v -E "Add the server to an inventory group|Additional variables for the server|$ALLOWED_CHANGES")
-  check "re-run succeeded" grep -qE "^$2 +:.* failed=0 " "$WORK/$1"
+  unexpected=$(changed_tasks "$log" | grep -v -E "Add the server to an inventory group|Additional variables for the server|$ALLOWED_CHANGES")
+  check "re-run succeeded" grep -qE "^$host +:.* failed=0 " "$WORK/$log"
   check "re-run changed nothing on the server (changed=$changed)" test -z "$unexpected"
-  changed_tasks "$1" | grep -E "$ALLOWED_CHANGES" | sed 's/^/    allowed: /'
+  changed_tasks "$log" | grep -E "$ALLOWED_CHANGES" | sed 's/^/    allowed: /'
   [ -z "$unexpected" ] || while read -r t; do echo "    changed: $t"; done <<<"$unexpected"
-  check "keys, user index and client configs are unchanged" diff <(snapshot_configs "$3") "$4"
-  check "re-run verified the saved host key" fails grep -q 'No SSH host key is saved' "$WORK/$1"
+  check "keys, user index and client configs are unchanged" diff <(snapshot_configs "$@") "$snapshot"
+  check "re-run verified the saved host key" fails grep -q 'No SSH host key is saved' "$WORK/$log"
 }

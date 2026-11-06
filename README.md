@@ -74,15 +74,18 @@ server; use `switch-dns` for that.
 
 ## Switch to another server
 
-Deploy the new server with a different `server_name`, give each device that server's config from
-`configs/<new-server-ip>/wireguard/`, then point the hostname at it:
+Deploy the new server with a different `server_name`, then point the hostname at it:
 
 ```bash
 ./algo switch-dns <server-name>
 ```
 
-Each server has its own keys, so a device keeps using its old server until it has the new
-server's config. Without a Cloudflare token, change the A record yourself instead.
+Every server uses the same WireGuard keys and user list, from `configs/default/wireguard/.pki`
+(`wireguard_shared_pki` in `config.cfg`): each device's keys and address, and one server key
+pair. With `endpoint_hostname` set, the new server's client configs are the ones devices already
+have, so they move over when the hostname does. Without a Cloudflare token, change the A record
+yourself instead. With `wireguard_shared_pki` empty, each server has its own keys in
+`configs/<server-ip>/wireguard/.pki`, and each device needs the new server's config.
 
 ## Deploy
 

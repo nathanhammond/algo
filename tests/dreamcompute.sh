@@ -108,7 +108,7 @@ log "Re-run (idempotency)"
 daily_cleanup_checks
 snapshot_configs "$WG" >"$WORK/$TAG-snapshot"
 deploy "$TAG-2.log" "${DEPLOY_ARGS[@]}"
-idempotency_checks "$TAG-2.log" "$IP" "$WG" "$WORK/$TAG-snapshot"
+idempotency_checks "$TAG-2.log" "$IP" "$WORK/$TAG-snapshot" "$WG"
 
 log "Reboot (reboot survival)"
 boot_before=$(ssh_server cat /proc/sys/kernel/random/boot_id)

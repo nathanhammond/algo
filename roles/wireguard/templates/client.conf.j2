@@ -6,7 +6,7 @@ DNS = {{ wireguard_dns_servers }}
 {% endif %}
 
 [Peer]
-PublicKey = {{ lookup('file', wireguard_pki_path + '/public/' + IP_subject_alt_name) }}
+PublicKey = {{ lookup('file', wireguard_pki_path + '/public/' + wireguard_server_key) }}
 PresharedKey = {{ lookup('file', wireguard_pki_path + '/preshared/' + item) }}
 AllowedIPs = 0.0.0.0/0,::/0
 Endpoint = {{ endpoint_hostname | default('', true) or (('[' + IP_subject_alt_name + ']') if ':' in IP_subject_alt_name else IP_subject_alt_name) }}:{{ wireguard_port }}

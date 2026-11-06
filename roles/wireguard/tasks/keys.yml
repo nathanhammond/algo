@@ -5,6 +5,13 @@
     state: absent
   when: keys_clean_all | bool
 
+# Client configs for this server, wherever the keys are
+- name: Ensure the WireGuard config directory exists
+  file:
+    dest: "{{ wireguard_config_path }}"
+    state: directory
+    mode: "0700"
+
 - name: Ensure the WireGuard pki directories exist
   file:
     dest: "{{ wireguard_pki_path }}/{{ item }}"
@@ -30,13 +37,13 @@
     executable: /bin/bash
     # Relative to chdir: the shell module checks creates after changing directory
     creates: private/{{ item }}
-  loop: "{{ users + [IP_subject_alt_name] }}"
+  loop: "{{ users + [wireguard_server_key] }}"
 
 - name: Set permissions for public keys
   file:
     path: "{{ wireguard_pki_path }}/public/{{ item }}"
     mode: '0644'
-  loop: "{{ users + [IP_subject_alt_name] }}"
+  loop: "{{ users + [wireguard_server_key] }}"
 
 # Keys from earlier versions (which set the whole tree to 0700) or copied from
 # elsewhere may have other modes; the directories stay 0700 either way.
@@ -44,6 +51,6 @@
   file:
     path: "{{ wireguard_pki_path }}/{{ item.1 }}/{{ item.0 }}"
     mode: '0600'
-  loop: "{{ (users + [IP_subject_alt_name]) | product(['private', 'preshared']) | list }}"
+  loop: "{{ (users + [wireguard_server_key]) | product(['private', 'preshared']) | list }}"
   loop_control:
     label: "{{ item.1 }}/{{ item.0 }}"
