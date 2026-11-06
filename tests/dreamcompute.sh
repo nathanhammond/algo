@@ -105,6 +105,7 @@ client_up algo-dc-c2 "$WG/beta.conf"
 tunnel_checks algo-dc-c1 algo-dc-c2 "$WG/alpha.conf" "$IP"
 
 log "Re-run (idempotency)"
+daily_cleanup_checks
 snapshot_configs "$WG" >"$WORK/$TAG-snapshot"
 deploy "$TAG-2.log" "${DEPLOY_ARGS[@]}"
 idempotency_checks "$TAG-2.log" "$IP" "$WG" "$WORK/$TAG-snapshot"

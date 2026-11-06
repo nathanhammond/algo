@@ -5,7 +5,7 @@
 # logrotate skips files ending in .disabled. Ubuntu's rsyslog rules are replaced by
 # the ones below. wtmp and btmp are not rotated at all: the daily cleanup forces a
 # rotation (logrotate -f), which would make wtmp.1 and btmp.1 every day for the
-# history clearing to delete on the next deploy.
+# history clearing to delete on the next deploy. The daily cleanup empties them instead.
 - name: Disable Ubuntu's logrotate rules for rsyslog, wtmp and btmp
   command: mv /etc/logrotate.d/{{ item }} /etc/logrotate.d/{{ item }}.disabled
   args:

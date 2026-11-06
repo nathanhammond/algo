@@ -35,7 +35,8 @@ this computer's CPU and network and would skew its measurements.
   answers containing private or CGNAT addresses are blocked, clients cannot reach each other,
   and the metadata service is blocked. On DreamCompute: from outside the tunnel only SSH
   answers, and DNS is not served.
-- **Idempotency:** a second deploy reports no changes on the server, verifies the saved host
+- **Idempotency:** the privacy role's daily cleanup runs without errors and empties `wtmp` and
+  `btmp`. A second deploy after it reports no changes on the server, verifies the saved host
   key, and leaves every key, the user index and every client config byte-for-byte the same.
 - **Users (Docker):** removing a user stops their access; a new user gets the next address;
   other users' configs do not change.

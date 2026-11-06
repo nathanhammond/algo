@@ -94,7 +94,7 @@ privacy_advanced:
 - `/etc/logrotate.d/99-privacy-enhanced` - Main log rotation config
 - `/etc/logrotate.d/99-auth-privacy` - Auth log rotation
 - `/etc/logrotate.d/99-kern-privacy` - Kernel log rotation
-- `/etc/logrotate.d/{rsyslog,wtmp,btmp}.disabled` - Ubuntu's rules, renamed so logrotate skips them; wtmp and btmp are never rotated
+- `/etc/logrotate.d/{rsyslog,wtmp,btmp}.disabled` - Ubuntu's rules, renamed so logrotate skips them; wtmp and btmp are never rotated, and the daily cleanup empties them instead
 - `/etc/rsyslog.d/49-privacy-vpn-filter.conf` - VPN log filtering
 - `/etc/rsyslog.d/48-privacy-kernel-filter.conf` - Kernel log filtering
 - `/etc/rsyslog.d/47-privacy-auth-filter.conf` - Auth log filtering (optional)

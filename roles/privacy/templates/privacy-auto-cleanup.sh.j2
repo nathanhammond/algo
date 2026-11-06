@@ -62,6 +62,15 @@ done
 log_message "Cleaning core dumps"
 find /var/crash -type f -name "*.crash" -mtime +1 -delete 2>/dev/null || true
 
+# Empty the login records. wtmp and btmp are never rotated (see log_rotation.yml), so this
+# is all that limits them; truncating keeps their owner and mode.
+log_message "Emptying login records"
+for f in /var/log/wtmp /var/log/btmp; do
+    if [ -f "$f" ]; then
+        truncate -s 0 "$f"
+    fi
+done
+
 # Force log rotation
 log_message "Forcing log rotation"
 /usr/sbin/logrotate -f /etc/logrotate.conf 2>/dev/null || true

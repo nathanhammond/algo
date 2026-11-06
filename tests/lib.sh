@@ -234,6 +234,22 @@ wait_for_ssh() {
 # installed since the last run can leave a reboot pending.
 ALLOWED_CHANGES='common : Reboot if updates need it|common : Wait until the server becomes ready'
 
+# daily_cleanup_checks : runs the privacy role's daily cleanup, as cron does at 02:30.
+# Called before a re-run, which must then still change nothing.
+daily_cleanup_checks() {
+  local out
+  out=$(ssh_server 'sudo bash -s' <<'REMOTE'
+head -c 384 /dev/urandom >>/var/log/wtmp
+head -c 384 /dev/urandom >>/var/log/btmp
+/usr/local/bin/privacy-auto-cleanup.sh && echo "cleanup ok"
+stat -c '%n %s %a %U:%G' /var/log/wtmp /var/log/btmp
+REMOTE
+)
+  check "the daily privacy cleanup succeeds" has_line '^cleanup ok$' echo "$out"
+  check "the daily cleanup empties wtmp" has_line '^/var/log/wtmp 0 664 root:utmp$' echo "$out"
+  check "the daily cleanup empties btmp" has_line '^/var/log/btmp 0 660 root:utmp$' echo "$out"
+}
+
 # idempotency_checks LOG HOST CONFIG_DIR SNAPSHOT : after a re-run
 idempotency_checks() {
   local changed unexpected
