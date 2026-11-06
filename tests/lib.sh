@@ -187,6 +187,8 @@ echo "reboot $(apt-config dump | sed -n 's/^Unattended-Upgrade::Automatic-Reboot
 echo "reboot_time $(apt-config dump | sed -n 's/^Unattended-Upgrade::Automatic-Reboot-Time "\(.*\)";/\1/p')"
 echo "query_log_lines $(cat /var/log/dnscrypt-proxy/query.log /var/log/dnscrypt-proxy/nx.log 2>/dev/null | wc -l)"
 echo "rsyslog $(rsyslogd -N1 >/dev/null 2>&1 && echo valid || echo invalid)"
+# A dry run of the forced rotation the daily privacy cleanup does
+echo "rotated_login_logs $(logrotate -d -f /etc/logrotate.conf 2>&1 | grep -cE '^considering log /var/log/[bw]tmp$')"
 echo "bashrc_blocks $(grep -c 'BEGIN ALGO: disable bash history' /root/.bashrc)"
 echo "x11 $(sshd -T 2>/dev/null | sed -n 's/^x11forwarding //p')"
 echo "userdata_private_keys $(grep -c 'PRIVATE KEY' /var/lib/cloud/instance/user-data.txt 2>/dev/null)"
@@ -210,6 +212,7 @@ REMOTE
   check "dnscrypt-proxy has logged no queries" state_is query_log_lines 0
   check "rsyslog configuration is valid" state_is rsyslog valid
   check "bash history settings appear once" state_is bashrc_blocks 1
+  check "logrotate never rotates wtmp or btmp" state_is rotated_login_logs 0
   if [ "${CLOUD:-false}" = true ]; then
     check "X11 forwarding is off" state_is x11 no
     check "AppArmor enforces dnscrypt-proxy" fails state_is apparmor_dnscrypt 0

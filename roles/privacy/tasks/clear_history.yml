@@ -13,6 +13,7 @@
   when: privacy_history_clearing.clear_bash_history | bool
   changed_when: false
 
+# wtmp.1 and btmp.1 are only left over from before log_rotation.yml stopped rotating them
 - name: Clear system command history logs
   file:
     path: "{{ item }}"

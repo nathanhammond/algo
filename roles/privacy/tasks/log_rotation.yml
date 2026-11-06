@@ -2,15 +2,18 @@
 # Aggressive log rotation configuration for privacy
 # Reduces log retention time and implements more frequent rotation
 
-- name: Check if default rsyslog logrotate config exists
-  stat:
-    path: /etc/logrotate.d/rsyslog
-  register: rsyslog_logrotate
-
-- name: Disable default rsyslog logrotate to prevent conflicts
-  command: mv /etc/logrotate.d/rsyslog /etc/logrotate.d/rsyslog.disabled
-  when: rsyslog_logrotate.stat.exists
-  changed_when: rsyslog_logrotate.stat.exists
+# logrotate skips files ending in .disabled. Ubuntu's rsyslog rules are replaced by
+# the ones below. wtmp and btmp are not rotated at all: the daily cleanup forces a
+# rotation (logrotate -f), which would make wtmp.1 and btmp.1 every day for the
+# history clearing to delete on the next deploy.
+- name: Disable Ubuntu's logrotate rules for rsyslog, wtmp and btmp
+  command: mv /etc/logrotate.d/{{ item }} /etc/logrotate.d/{{ item }}.disabled
+  args:
+    removes: /etc/logrotate.d/{{ item }}
+  loop:
+    - rsyslog
+    - wtmp
+    - btmp
 
 - name: Configure aggressive logrotate for system logs
   template:
