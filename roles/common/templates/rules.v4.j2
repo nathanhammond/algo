@@ -10,9 +10,10 @@
 
 {% if dns_encryption | bool and dns_force_dnscrypt | bool %}
 # Answer every plain DNS query from VPN clients with dnscrypt-proxy, whichever
-# resolver it was sent to, so none leaves the server unencrypted
--A PREROUTING -i wg0 -s {{ vpn }} -p udp --dport 53 -j DNAT --to-destination {{ local_service_ip }}:53
--A PREROUTING -i wg0 -s {{ vpn }} -p tcp --dport 53 -j DNAT --to-destination {{ local_service_ip }}:53
+# resolver it was sent to, so none leaves the server unencrypted. Queries to the
+# ad-blocking resolver are left alone: clients that chose it keep it.
+-A PREROUTING -i wg0 -s {{ vpn }} ! -d {{ local_adblock_ip }} -p udp --dport 53 -j DNAT --to-destination {{ local_service_ip }}:53
+-A PREROUTING -i wg0 -s {{ vpn }} ! -d {{ local_adblock_ip }} -p tcp --dport 53 -j DNAT --to-destination {{ local_service_ip }}:53
 {% endif %}
 {% if wireguard_port | int == wireguard_port_avoid | int %}
 # WireGuard on a port that is already in use, like 53: VPN clients keep it,
@@ -45,6 +46,9 @@ COMMIT
 # DNS to the local resolver, from VPN clients only. TCP carries answers too large for UDP.
 -A INPUT -i wg0 -s {{ vpn }} -d {{ local_service_ip }} -p udp --dport 53 -j ACCEPT
 -A INPUT -i wg0 -s {{ vpn }} -d {{ local_service_ip }} -p tcp --dport 53 -j ACCEPT
+# The same for the ad-blocking resolver
+-A INPUT -i wg0 -s {{ vpn }} -d {{ local_adblock_ip }} -p udp --dport 53 -j ACCEPT
+-A INPUT -i wg0 -s {{ vpn }} -d {{ local_adblock_ip }} -p tcp --dport 53 -j ACCEPT
 
 # Traffic between VPN clients
 -A FORWARD -s {{ vpn }} -d {{ vpn }} -j {{ "DROP" if BetweenClients_DROP else "ACCEPT" }}

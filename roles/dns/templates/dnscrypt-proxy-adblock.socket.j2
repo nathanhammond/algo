@@ -1,0 +1,20 @@
+[Unit]
+Description=dnscrypt-proxy ad-blocking resolver listening socket (Algo)
+Before=nss-lookup.target
+Wants=nss-lookup.target
+
+[Socket]
+ListenStream={{ local_adblock_ip }}:53
+ListenDatagram={{ local_adblock_ip }}:53
+{% if ipv6_support | bool %}
+ListenStream=[{{ local_adblock_ipv6 }}]:53
+ListenDatagram=[{{ local_adblock_ipv6 }}]:53
+{% endif %}
+NoDelay=true
+DeferAcceptSec=1
+# local_adblock_ip is added to lo by systemd-networkd, which may not have
+# happened yet when the socket starts at boot
+FreeBind=true
+
+[Install]
+WantedBy=sockets.target

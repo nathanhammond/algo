@@ -26,15 +26,18 @@ its measurements.
 - **Deploy:** a fresh server deploys without errors, and its SSH host key is saved before
   (DreamCompute, read from the console log; no private key is sent in user data) or on
   (Docker) the first connection.
-- **Server:** WireGuard, dnscrypt-proxy, netfilter-persistent, rsyslog and cron are running with
-  no failed units. The firewall uses the nftables backend, drops by default and accepts DNS
-  only from `wg0`. Reverse-path filtering is strict, automatic reboots are set for 21:00
+- **Server:** WireGuard, both dnscrypt-proxy resolvers, netfilter-persistent, rsyslog and cron
+  are running with no failed units. The firewall uses the nftables backend, drops by default
+  and accepts DNS to both resolvers only from `wg0`. The ad-blocking list is loaded and updated
+  daily. Reverse-path filtering is strict, automatic reboots are set for 21:00
   UTC, dnscrypt-proxy logs no queries, and on DreamCompute AppArmor enforces
   dnscrypt-proxy and X11 forwarding is off.
 - **Connectability:** two clients complete handshakes and reach the internet (and IPv6 when
   the server has it) through the tunnel, with the server's address as the egress address
-  (DreamCompute). DNS goes through dnscrypt-proxy, `dns_records` answer by exact name only,
-  answers containing private or CGNAT addresses are blocked, clients cannot reach each other,
+  (DreamCompute). DNS goes through dnscrypt-proxy, cached answers keep their TTL, `dns_records`
+  answer by exact name only, answers containing private or CGNAT addresses are blocked. The
+  ad-blocking resolver blocks a listed name that the unfiltered one answers, and answers other
+  names and `dns_records`. Clients cannot reach each other,
   and the metadata service is blocked. On DreamCompute: from outside the tunnel only SSH
   answers, and DNS is not served.
 - **Idempotency:** the privacy role's daily cleanup runs without errors and empties `wtmp` and

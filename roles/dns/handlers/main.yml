@@ -14,3 +14,15 @@
     name: dnscrypt-proxy
     state: restarted
     daemon_reload: true
+
+- name: restart dnscrypt-proxy-adblock.socket
+  systemd:
+    name: dnscrypt-proxy-adblock.socket
+    state: restarted
+    daemon_reload: true
+
+- name: restart dnscrypt-proxy-adblock
+  systemd:
+    name: dnscrypt-proxy-adblock
+    state: restarted
+    daemon_reload: true

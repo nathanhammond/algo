@@ -1,0 +1,38 @@
+# Algo's ad-blocking resolver: dnscrypt-proxy with /etc/dnscrypt-proxy/blacklist.txt,
+# forwarding everything else to the unfiltered dnscrypt-proxy.service. Based on the
+# package's dnscrypt-proxy.service plus Algo's hardening drop-in for it.
+[Unit]
+Description=dnscrypt-proxy ad-blocking resolver (Algo)
+Requires=dnscrypt-proxy-adblock.socket
+Wants=dnscrypt-proxy.service
+After=network.target dnscrypt-proxy.service
+Before=nss-lookup.target
+Wants=nss-lookup.target
+
+[Service]
+NonBlocking=true
+ExecStart=/usr/sbin/dnscrypt-proxy -config /etc/dnscrypt-proxy/dnscrypt-proxy-adblock.toml
+# Its only upstream is the unfiltered resolver's DNS-over-HTTPS endpoint on 127.0.0.1,
+# so it trusts only that endpoint's certificate (and no CA directory)
+Environment=SSL_CERT_FILE=/etc/dnscrypt-proxy/local-doh.crt
+Environment=SSL_CERT_DIR=/nonexistent
+User=_dnscrypt-proxy
+Restart=on-failure
+
+ProtectHome=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+MemoryDenyWriteExecute=true
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+PrivateDevices=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+SystemCallFilter=@system-service @network-io
+SystemCallFilter=~@debug @mount @swap @reboot @raw-io
+SystemCallErrorNumber=EPERM
+
+[Install]
+Also=dnscrypt-proxy-adblock.socket
+WantedBy=multi-user.target

@@ -2,8 +2,9 @@
 
 A trimmed fork of Algo VPN. It deploys a WireGuard VPN with dnscrypt-proxy to one Ubuntu 26.04
 server on DreamHost DreamCompute (OpenStack), or to an existing Ubuntu server (`provider: local`).
-IPsec, SSH tunneling, Apple profiles, ad blocking, and all other cloud providers were removed in
-the first commit of this fork; requests to bring them back belong upstream.
+IPsec, SSH tunneling, Apple profiles, and all other cloud providers were removed in the first
+commit of this fork; requests to bring them back belong upstream. Ad blocking was later added
+back as a separate, opt-in resolver (see DNS Architecture).
 
 ### Philosophy
 - Stability over features
@@ -27,7 +28,7 @@ roles/
   cloud-openstack/  # security group, flavor/image/network lookup, server, cloud-init
   local/            # existing server: asks for server, ssh_user, endpoint
   common/           # updates, reboot, sysctl, iptables (nftables backend)
-  dns/              # dnscrypt-proxy on local_service_ip via systemd socket activation
+  dns/              # dnscrypt-proxy on local_service_ip, and an ad-blocking one on local_adblock_ip
   wireguard/        # keys via the wg CLI on the controller, wg0.conf, client .conf + QR
   privacy/          # log retention/filtering, history clearing, cleanup
 files/cloud-init/   # user-data template and sshd_config for new servers
@@ -196,11 +197,33 @@ that: my_ip is ansible.utils.ipv4_address
 
 ## DNS Architecture
 
-Algo uses a randomly generated IP in 172.16.0.0/12 on the loopback interface (`local_service_ip`) for DNS. It requires understanding systemd socket activation.
+Algo puts the VPN's DNS on addresses on the loopback interface: `local_service_ip` (10.10.10.10)
+for the unfiltered resolver that client configs use, and `local_adblock_ip` (10.10.10.11) for an
+ad-blocking one that devices opt into by setting it as their DNS by hand. Both are socket-activated.
+
+### The ad-blocking resolver
+
+`dnscrypt-proxy-adblock.service` is a second dnscrypt-proxy
+(`/etc/dnscrypt-proxy/dnscrypt-proxy-adblock.toml`) that blocks `blacklist.txt` and forwards
+everything else to the unfiltered one, which keeps doing everything else (encrypted upstream,
+`dns_records`, the rebinding filter, the server's own lookups).
+
+- dnscrypt-proxy takes no plain DNS upstream (plain stamps are rejected, a `.` forwarding rule
+  forwards nothing on 2.0.45), so the unfiltered one also serves DNS over HTTPS on
+  `127.0.0.1:25353` (`[local_doh]`) with a self-signed certificate for that IP. The ad-blocking
+  one's only server is a constant stamp for it, with no certificate hash: its unit sets
+  `SSL_CERT_FILE` to that certificate and `SSL_CERT_DIR` to nothing, so it trusts nothing else.
+  The certificate must be for the IP, not a name: 2.0.45 looks a name up instead of using the
+  stamp's address. The port goes in the stamp's host name; the address field is not used for it.
+- `adblock.sh` and `dns_adblocking.yml` are upstream Algo's, with the list path and restarted
+  service changed; the cron time is seeded so re-runs do not change it. Blocked names get
+  dnscrypt-proxy's default answer (HINFO, no address), as upstream.
+- The `dns_force_dnscrypt` DNAT must exclude `local_adblock_ip`, or queries to it are answered
+  by the unfiltered resolver.
 
 ### Why This Design
 
-- The DNS address clients use never changes for a server
+- The DNS addresses are the same on every server and never change
 - Survives interface changes and restarts
 - Not tied to the cloud's network setup
 - Trade-off: Requires `route_localnet=1` sysctl

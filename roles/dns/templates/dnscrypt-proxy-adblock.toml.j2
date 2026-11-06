@@ -1,0 +1,45 @@
+## Algo's second resolver, on local_adblock_ip (dnscrypt-proxy-adblock.service). It
+## blocks the names adblock.sh writes to blacklist.txt and sends every other query to
+## the unfiltered dnscrypt-proxy, over that one's DNS-over-HTTPS endpoint on
+## 127.0.0.1 (dnscrypt-proxy accepts no plain DNS upstream). So dns_records, the DNS
+## rebinding filter and the encrypted upstream servers are the unfiltered resolver's.
+## Blocked names get dnscrypt-proxy's default answer (blocked_query_response 'hinfo'),
+## as in upstream Algo.
+
+## Socket-activated: dnscrypt-proxy-adblock.socket holds local_adblock_ip:53
+listen_addresses = []
+
+server_names = ['algo-unfiltered']
+max_clients = 250
+ipv4_servers = true
+ipv6_servers = false
+dnscrypt_servers = false
+doh_servers = true
+timeout = 2500
+keepalive = 30
+log_level = 4
+use_syslog = false
+
+## Never used: the only server is an address, so nothing needs looking up. The
+## unfiltered resolver, in case a version ever does.
+fallback_resolvers = ['{{ local_service_ip }}:53']
+ignore_system_dns = true
+netprobe_timeout = 60
+netprobe_address = '{{ local_service_ip }}:53'
+
+{% include 'dnscrypt-proxy/cache.toml.j2' %}
+
+
+[blacklist]
+  blacklist_file = 'blacklist.txt'
+
+
+[static]
+  ## DNS over HTTPS to https://127.0.0.1:25353/dns-query (the unfiltered resolver's
+  ## [local_doh]), with no certificate hash: the service trusts only local-doh.crt.
+  ## Made with: python3 -c 'import base64, struct; lp = lambda x: bytes([len(x)]) + x;
+  ##   print("sdns://" + base64.urlsafe_b64encode(b"\x02" + struct.pack("<Q", 0)
+  ##   + lp(b"127.0.0.1:25353") + b"\x00" + lp(b"127.0.0.1:25353")
+  ##   + lp(b"/dns-query")).decode().rstrip("="))'
+  [static.'algo-unfiltered']
+  stamp = 'sdns://AgAAAAAAAAAADzEyNy4wLjAuMToyNTM1MwAPMTI3LjAuMC4xOjI1MzUzCi9kbnMtcXVlcnk'

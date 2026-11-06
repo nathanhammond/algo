@@ -17,3 +17,18 @@
 
 
 {% include 'dnscrypt-proxy/sources.toml.j2' %}
+
+
+###################################################
+#   Local DNS over HTTPS, for the ad-blocking one   #
+###################################################
+
+## The ad-blocking resolver (dnscrypt-proxy-adblock.toml) sends what it does not
+## block here. dnscrypt-proxy accepts no plain DNS upstream, so this is its only way
+## to use this resolver. The firewall accepts nothing to it from VPN clients or the
+## internet.
+[local_doh]
+  listen_addresses = ['127.0.0.1:25353']
+  path = '/dns-query'
+  cert_file = 'local-doh.crt'
+  cert_key_file = 'local-doh.key'

@@ -139,13 +139,17 @@ This replaces the server's firewall rules, so only use it on a server dedicated 
 ## What runs on the server
 
 - **WireGuard** on UDP `wireguard_port`
-- **dnscrypt-proxy** on a private address on `lo` (`local_service_ip`), reachable only through
+- **dnscrypt-proxy** on a private address on `lo` (`local_service_ip`, 10.10.10.10), reachable only through
   the VPN. It forwards to `dnscrypt_servers` over DNSCrypt/DoH, never logs queries, and answers
   `dns_records`. With `dns_force_dnscrypt` (the default), it also answers DNS that devices send
   to any other resolver, so no plain DNS query leaves the server. The server's own lookups
   (updates, time servers) go through dnscrypt-proxy too, rather than to the DNS servers its
   network provides. dnscrypt-proxy itself uses `dns_servers` only at startup, for its resolver
   list and server names.
+- **An ad-blocking resolver** at `local_adblock_ip` (10.10.10.11), which devices opt into: in the
+  WireGuard app, change the tunnel's DNS from 10.10.10.10 to 10.10.10.11. It blocks the names in
+  `adblock_lists` (StevenBlack's hosts list, refreshed daily) and sends everything else to the
+  unfiltered resolver, so `dns_records` and the encrypted upstream servers are the same.
 - **iptables** (nftables backend) allows only SSH, WireGuard, and ping. It also blocks
   client-to-client traffic, the cloud metadata service, and SMB/NetBIOS.
 - **Privacy settings:** short log retention, VPN messages filtered from syslog, shell history

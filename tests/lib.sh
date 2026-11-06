@@ -9,6 +9,8 @@ WORK="$TESTS/.work"
 # Each suite has its own Docker network, client image and container names (algo-$SUITE-*),
 # so one suite never removes or shares another's containers
 NET=algo-$SUITE
+# The ad-blocking resolver's address (local_adblock_ip in config.cfg)
+ADBLOCK_DNS=$(sed -n 's/^local_adblock_ip: *"\{0,1\}\([0-9.]*\)"\{0,1\} *$/\1/p' "$REPO/config.cfg")
 CLIENT_IMAGE=algo-$SUITE-client
 mkdir -p "$WORK"
 # The deploy runs from the repository's own uv environment
@@ -155,6 +157,13 @@ tunnel_checks() {
   check "DNS over TCP works" has_line '^[0-9.]+$' docker exec "$c1" dig +short +tcp +time=5 @"$dns" example.com
   # 2.5 KB: too large for UDP, so dig retries over TCP (dnscrypt-proxy drops answers over 4 KB)
   check "answers too large for UDP arrive (TXT cloudflare.com)" has_line 'ANSWER: [1-9]' docker exec "$c1" dig +time=5 @"$dns" TXT cloudflare.com
+  # The ad-blocking resolver, which clients choose by hand. doubleclick.net is in the
+  # StevenBlack list; its blocked answer (an HINFO record, no address) also shows the
+  # query was not redirected to the unfiltered resolver.
+  check "the ad-blocking resolver blocks doubleclick.net ($ADBLOCK_DNS)" has_line 'locally blocked' docker exec "$c1" dig +short +time=5 @"$ADBLOCK_DNS" doubleclick.net A
+  check "... which the unfiltered resolver answers" has_line '^[0-9.]+$' docker exec "$c1" dig +short +time=5 @"$dns" doubleclick.net A
+  check "the ad-blocking resolver answers other names (example.com)" has_line '^[0-9.]+$' docker exec "$c1" dig +short +time=5 @"$ADBLOCK_DNS" example.com A
+  check "the ad-blocking resolver answers dns_records (nas.example.test)" has_line '^192\.0\.2\.10$' docker exec "$c1" dig +short +time=5 @"$ADBLOCK_DNS" nas.example.test
   check "custom record is exact-match only" lacks_line '^192\.0\.2\.10$' docker exec "$c1" dig +short @"$dns" x.nas.example.test
   # sslip.io names resolve to the address they spell out
   check "DNS answers with private addresses are blocked" lacks_line '^10\.1\.2\.3$' docker exec "$c1" dig +short +time=5 @"$dns" 10-1-2-3.sslip.io
@@ -181,7 +190,7 @@ service_active() { [ "$(awk -v u="$1" '$1 == "active" && $2 == u {print $3}' <<<
 server_checks() {
   local users=$1 u
   SERVER_STATE=$(ssh_server 'sudo bash -s' <<'REMOTE'
-for u in wg-quick@wg0 dnscrypt-proxy.socket dnscrypt-proxy netfilter-persistent rsyslog cron; do
+for u in wg-quick@wg0 dnscrypt-proxy.socket dnscrypt-proxy dnscrypt-proxy-adblock.socket dnscrypt-proxy-adblock netfilter-persistent rsyslog cron; do
   echo "active $u $(systemctl is-active "$u")"
 done
 echo "failed_units $(systemctl --failed --no-legend | wc -l)"
@@ -200,6 +209,8 @@ echo "rsyslog $(rsyslogd -N1 >/dev/null 2>&1 && echo valid || echo invalid)"
 # A dry run of the forced rotation the daily privacy cleanup does
 echo "rotated_login_logs $(logrotate -d -f /etc/logrotate.conf 2>&1 | grep -cE '^considering log /var/log/[bw]tmp$')"
 echo "bashrc_blocks $(grep -c 'BEGIN ALGO: disable bash history' /root/.bashrc)"
+echo "blocked_names $(wc -l </etc/dnscrypt-proxy/blacklist.txt 2>/dev/null)"
+echo "adblock_cron $(crontab -l 2>/dev/null | grep -c '/usr/local/sbin/adblock.sh')"
 # Only dnscrypt-proxy knows dns_records names, so this answer shows the server's own
 # lookups (through /etc/resolv.conf and systemd-resolved) go through it
 echo "own_dns $(getent ahostsv4 nas.example.test | awk 'NR == 1 {print $1}')"
@@ -222,7 +233,7 @@ echo "userdata_private_keys $(grep -c 'PRIVATE KEY' /var/lib/cloud/instance/user
 echo "apparmor_dnscrypt $(aa-status 2>/dev/null | sed -n '/in enforce mode/,/in complain mode/p' | grep -c dnscrypt-proxy)"
 REMOTE
 )
-  for u in wg-quick@wg0 dnscrypt-proxy.socket dnscrypt-proxy netfilter-persistent rsyslog cron; do
+  for u in wg-quick@wg0 dnscrypt-proxy.socket dnscrypt-proxy dnscrypt-proxy-adblock.socket dnscrypt-proxy-adblock netfilter-persistent rsyslog cron; do
     check "service $u is active" service_active "$u"
   done
   check "no failed systemd units" state_is failed_units 0
@@ -231,7 +242,9 @@ REMOTE
   check "iptables uses the nftables backend" has_line nf_tables state backend
   check "no rules in the legacy iptables tables" state_is legacy_rules 0
   check "INPUT drops by default" state_is input_policy "-P INPUT DROP"
-  check "DNS (UDP and TCP) is accepted only from wg0" state_is dns_rule 2
+  check "DNS (UDP and TCP) to both resolvers is accepted only from wg0" state_is dns_rule 4
+  check "the ad-blocking list is loaded (over 10,000 names)" has_line '^[0-9]{5,}$' state blocked_names
+  check "the ad-blocking list is updated daily" state_is adblock_cron 1
   check "strict reverse-path filtering" state_is rp_filter 1
   check "IP forwarding is on" state_is ip_forward 1
   check "automatic reboots are on" state_is reboot true

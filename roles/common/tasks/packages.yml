@@ -2,8 +2,9 @@
 - name: Install packages
   apt:
     # ca-certificates: dnscrypt-proxy verifies TLS when it fetches its resolver list,
-    # and minimal images (such as ubuntu:24.04 in Docker) lack it
-    name: "{{ tools + ['wireguard'] + (['dnscrypt-proxy', 'ca-certificates'] if dns_encryption | bool else []) }}"
+    # and minimal images (such as ubuntu:24.04 in Docker) lack it. It also brings
+    # openssl, which makes the local DNS-over-HTTPS certificate. wget: adblock.sh.
+    name: "{{ tools + ['wireguard'] + (['dnscrypt-proxy', 'ca-certificates', 'wget'] if dns_encryption | bool else []) }}"
     state: present
     update_cache: true
     install_recommends: true

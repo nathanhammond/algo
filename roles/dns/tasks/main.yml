@@ -26,6 +26,70 @@
   notify:
     - restart dnscrypt-proxy
 
+# For its local DNS-over-HTTPS endpoint ([local_doh]), which the ad-blocking
+# resolver trusts instead of any CA. Made once; the ad-blocking resolver reads the
+# certificate file itself, so a new one needs no other change.
+- name: Certificate for dnscrypt-proxy's local DNS-over-HTTPS endpoint
+  shell: >-
+    umask 077 &&
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 36500
+    -subj /CN=127.0.0.1 -addext subjectAltName=IP:127.0.0.1
+    -keyout /etc/dnscrypt-proxy/local-doh.key -out /etc/dnscrypt-proxy/local-doh.crt
+  args:
+    creates: /etc/dnscrypt-proxy/local-doh.crt
+  notify:
+    - restart dnscrypt-proxy
+    - restart dnscrypt-proxy-adblock
+
+- name: Only dnscrypt-proxy can read the endpoint's private key
+  file:
+    path: /etc/dnscrypt-proxy/local-doh.key
+    owner: _dnscrypt-proxy
+    group: root
+    mode: '0600'
+
+- name: The endpoint's certificate is readable
+  file:
+    path: /etc/dnscrypt-proxy/local-doh.crt
+    owner: root
+    group: root
+    mode: '0644'
+
+# The ad-blocking resolver on local_adblock_ip: a second dnscrypt-proxy that blocks
+# adblock_lists and forwards everything else to the one above
+- name: dnscrypt-proxy ad-blocking resolver configured
+  template:
+    src: dnscrypt-proxy-adblock.toml.j2
+    dest: /etc/dnscrypt-proxy/dnscrypt-proxy-adblock.toml
+    mode: '0644'
+  notify:
+    - restart dnscrypt-proxy-adblock
+
+# adblock.sh replaces it; until then the resolver starts with nothing blocked
+- name: The ad-blocking resolver's list exists
+  copy:
+    dest: /etc/dnscrypt-proxy/blacklist.txt
+    content: ""
+    force: false
+    mode: '0644'
+
+- name: dnscrypt-proxy ad-blocking resolver's socket configured
+  template:
+    src: dnscrypt-proxy-adblock.socket.j2
+    dest: /etc/systemd/system/dnscrypt-proxy-adblock.socket
+    mode: '0644'
+  notify:
+    - restart dnscrypt-proxy-adblock.socket
+    - restart dnscrypt-proxy-adblock
+
+- name: dnscrypt-proxy ad-blocking resolver's service configured
+  copy:
+    src: dnscrypt-proxy-adblock.service
+    dest: /etc/systemd/system/dnscrypt-proxy-adblock.service
+    mode: '0644'
+  notify:
+    - restart dnscrypt-proxy-adblock
+
 - meta: flush_handlers
 
 - name: Ensure dnscrypt-proxy socket is enabled and started
@@ -40,6 +104,19 @@
     name: dnscrypt-proxy
     state: started
     enabled: true
+
+- name: Include DNS adblocking tasks
+  import_tasks: dns_adblocking.yml
+
+- name: dnscrypt-proxy ad-blocking resolver enabled and started
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - dnscrypt-proxy-adblock.socket
+    - dnscrypt-proxy-adblock.service
 
 # Only now that dnscrypt-proxy answers: until then the server's lookups (apt in the
 # common role) still use the DNS servers its network provides
