@@ -190,6 +190,23 @@ echo "rsyslog $(rsyslogd -N1 >/dev/null 2>&1 && echo valid || echo invalid)"
 # A dry run of the forced rotation the daily privacy cleanup does
 echo "rotated_login_logs $(logrotate -d -f /etc/logrotate.conf 2>&1 | grep -cE '^considering log /var/log/[bw]tmp$')"
 echo "bashrc_blocks $(grep -c 'BEGIN ALGO: disable bash history' /root/.bashrc)"
+# Only dnscrypt-proxy knows dns_records names, so this answer shows the server's own
+# lookups (through /etc/resolv.conf and systemd-resolved) go through it
+echo "own_dns $(getent ahostsv4 nas.example.test | awk 'NR == 1 {print $1}')"
+if command -v tcpdump >/dev/null; then
+  iface=$(ip -4 route show default | awk '{print $5; exit}')
+  # Stopped 2 s after the lookup; -l writes a captured packet out at once
+  tcpdump -l -ni "$iface" -c 1 'port 53' >/tmp/algo-dns-leak 2>/dev/null &
+  capture=$!
+  sleep 2
+  getent hosts "algo-leak-$RANDOM$RANDOM.example.org" >/dev/null
+  sleep 2
+  kill "$capture" 2>/dev/null
+  wait
+  echo "plain_dns_packets $(grep -c . /tmp/algo-dns-leak)"
+  echo "plain_dns_sample $(head -1 /tmp/algo-dns-leak)"
+  rm -f /tmp/algo-dns-leak
+fi
 echo "x11 $(sshd -T 2>/dev/null | sed -n 's/^x11forwarding //p')"
 echo "userdata_private_keys $(grep -c 'PRIVATE KEY' /var/lib/cloud/instance/user-data.txt 2>/dev/null)"
 echo "apparmor_dnscrypt $(aa-status 2>/dev/null | sed -n '/in enforce mode/,/in complain mode/p' | grep -c dnscrypt-proxy)"
@@ -213,10 +230,13 @@ REMOTE
   check "rsyslog configuration is valid" state_is rsyslog valid
   check "bash history settings appear once" state_is bashrc_blocks 1
   check "logrotate never rotates wtmp or btmp" state_is rotated_login_logs 0
+  check "the server's own lookups go through dnscrypt-proxy" state_is own_dns 192.0.2.10
   if [ "${CLOUD:-false}" = true ]; then
     check "X11 forwarding is off" state_is x11 no
     check "AppArmor enforces dnscrypt-proxy" fails state_is apparmor_dnscrypt 0
     check "no private key was sent in user data" state_is userdata_private_keys 0
+    check "the server's own lookups send no plain DNS" state_is plain_dns_packets 0
+    state_is plain_dns_packets 0 || echo "    sent: $(state plain_dns_sample)"
   fi
 }
 

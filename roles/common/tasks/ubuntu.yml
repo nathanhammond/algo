@@ -46,6 +46,40 @@
   notify:
     - restart systemd-resolved
 
+# The systemd-networkd file for the default interface (netplan generates it on
+# Ubuntu servers). The dns role adds a drop-in for it; empty when networkd does
+# not manage the interface.
+- name: Find the default interface's network file
+  command: networkctl status --no-pager {{ ansible_facts['default_ipv4']['interface'] }}
+  register: _networkctl_status
+  changed_when: false
+  failed_when: false
+
+- name: Remember the default interface's network file
+  set_fact:
+    default_network_file: >-
+      {{ _networkctl_status.stdout | default('') | regex_findall('Network File: (/[-./@:A-Za-z0-9_]+)') | first | default('') }}
+
+# The dns role sends the server's own lookups to dnscrypt-proxy; without
+# dns_encryption they go to the DNS servers the network provides
+- name: The server's own lookups skip dnscrypt-proxy when it is off
+  file:
+    path: /etc/systemd/resolved.conf.d/90-algo-dnscrypt.conf
+    state: absent
+  when: not dns_encryption | bool
+  notify:
+    - restart systemd-resolved
+
+- name: The network's DNS servers are used again when dnscrypt-proxy is off
+  file:
+    path: /etc/systemd/network/{{ default_network_file | basename }}.d/90-algo-dns.conf
+    state: absent
+  when:
+    - not dns_encryption | bool
+    - default_network_file | length > 0
+  notify:
+    - restart systemd-networkd
+
 - name: Loopback for services configured
   template:
     src: 10-algo-lo100.network.j2

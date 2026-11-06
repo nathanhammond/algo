@@ -78,9 +78,9 @@ cleanup() {
 lock perf
 trap cleanup EXIT
 
-# The container uses Docker's DNS, which needs NAT rules that the VPN's firewall
-# replaces; a real server resolves through systemd-resolved instead.
-fix_resolv() { docker exec "$SERVER" sh -c 'echo "nameserver 1.1.1.1" > /etc/resolv.conf'; }
+# Docker points resolv.conf at its own DNS, which needs NAT rules that the VPN's
+# firewall replaces; a real server resolves through systemd-resolved instead.
+fix_resolv() { docker exec "$SERVER" sh -c 'printf "nameserver 127.0.0.53\noptions edns0 trust-ad\n" > /etc/resolv.conf'; }
 
 # wait_for_boot : waits until systemd has finished starting the server
 wait_for_boot() {

@@ -95,10 +95,6 @@
     dest: /etc/systemd/system/dnscrypt-proxy.service.d/99-algo.conf
     mode: '0644'
     content: |
-      [Unit]
-      After=systemd-resolved.service
-      Requires=systemd-resolved.service
-
       [Service]
       AmbientCapabilities=CAP_NET_BIND_SERVICE
   register: dnscrypt_override

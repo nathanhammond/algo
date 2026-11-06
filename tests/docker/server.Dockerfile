@@ -16,6 +16,10 @@ RUN rm -f /usr/sbin/policy-rc.d
 # network online and this unit always fails here (on a VM, netplan hands the NIC
 # to networkd)
 RUN systemctl mask systemd-networkd-wait-online.service
+# Stands in for the DNS servers a cloud network hands out by DHCP, which Algo
+# must override
+RUN mkdir -p /etc/systemd/resolved.conf.d \
+ && printf '[Resolve]\nDNS=1.1.1.1\n' > /etc/systemd/resolved.conf.d/00-test-network.conf
 # The user Algo's cloud-init creates (files/cloud-init/base.yml), with SSH on port 4160
 RUN useradd --create-home --shell /bin/bash --user-group algo \
  && echo 'algo ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/algo && chmod 0440 /etc/sudoers.d/algo \

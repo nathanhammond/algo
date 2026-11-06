@@ -40,3 +40,54 @@
     name: dnscrypt-proxy
     state: started
     enabled: true
+
+# Only now that dnscrypt-proxy answers: until then the server's lookups (apt in the
+# common role) still use the DNS servers its network provides
+- name: systemd-resolved drop-in directory exists
+  file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    mode: '0755'
+
+- name: The server's own lookups go through dnscrypt-proxy
+  template:
+    src: resolved-dnscrypt.conf.j2
+    dest: /etc/systemd/resolved.conf.d/90-algo-dnscrypt.conf
+    mode: '0644'
+  notify:
+    - restart systemd-resolved
+
+# Domains=~. above is not enough: systemd-resolved still sends names under the
+# network's search domain to the network's DNS servers, and glibc retries every
+# name that does not exist with that domain appended (on DreamCompute,
+# <name>.openstacklocal to 8.8.8.8 in plain text).
+- name: The network's DNS servers and search domains are not used
+  when: default_network_file | default('') | length > 0
+  block:
+    - name: Drop-in directory for the default interface's network file exists
+      file:
+        path: /etc/systemd/network/{{ default_network_file | basename }}.d
+        state: directory
+        mode: '0755'
+
+    - name: DHCP and router advertisements supply no DNS servers or search domains
+      copy:
+        dest: /etc/systemd/network/{{ default_network_file | basename }}.d/90-algo-dns.conf
+        mode: '0644'
+        content: |
+          # The server resolves through dnscrypt-proxy (/etc/systemd/resolved.conf.d/90-algo-dnscrypt.conf)
+          [DHCPv4]
+          UseDNS=no
+          UseDomains=no
+
+          [DHCPv6]
+          UseDNS=no
+          UseDomains=no
+
+          [IPv6AcceptRA]
+          UseDNS=no
+          UseDomains=no
+      notify:
+        - restart systemd-networkd
+
+- meta: flush_handlers

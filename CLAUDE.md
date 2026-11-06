@@ -259,7 +259,16 @@ For comprehensive diagnostics, see [docs/troubleshooting.md](docs/troubleshootin
 - **dnscrypt-proxy** is 2.1.14 on Ubuntu 26.04 and 2.0.45 on 24.04. Use keys both accept (check
   with `dnscrypt-proxy -config <file> -check` on each): 2.1 rejects `fallback_resolver`, 2.0.45
   rejects `bootstrap_resolvers`, and both accept `fallback_resolvers`.
-  `dnscrypt-proxy-resolvconf` is masked so the server keeps resolving through systemd-resolved.
+  `dnscrypt-proxy-resolvconf` is masked: it would register the listeners through resolvconf,
+  and it fails on the IPv6 one.
+- **The server's own DNS**: systemd-resolved forwards to dnscrypt-proxy
+  (`/etc/systemd/resolved.conf.d/90-algo-dnscrypt.conf`, `Domains=~.` so the DHCP-supplied
+  servers are not used), and a networkd drop-in for the default interface's `.network` file
+  stops DHCP supplying DNS servers and search domains: with a search domain, glibc retries
+  failed names as `<name>.openstacklocal`, which resolved sends to the DHCP server in plain
+  text. The dns role writes these only after dnscrypt-proxy answers, so apt in
+  the common role works on a first run. dnscrypt-proxy's `fallback_resolvers` must therefore
+  never be `127.0.0.53`, or it asks itself.
 - **rsyslog**: Ubuntu's `/etc/rsyslog.conf` already loads imuxsock and imklog; loading them again
   in `rsyslog.d` makes `rsyslogd -N1` fail on the next run.
 - **Sysctls** go in files under `/etc/sysctl.d/` (`sysctl_file:`). Ubuntu 26.04 no longer

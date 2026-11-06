@@ -1,0 +1,9 @@
+# The server resolves names the way its VPN clients do: through dnscrypt-proxy,
+# with the same encrypted upstream servers, dns_records and blocking.
+[Resolve]
+# The empty value drops global servers set elsewhere; the rest are dnscrypt-proxy's listeners
+DNS=
+DNS={{ local_service_ip }}{{ ' ' + local_service_ipv6 if ipv6_support | bool else '' }}
+# Route every name here. The dns role also stops DHCP from supplying DNS servers
+# and search domains (DreamCompute hands out 8.8.8.8, queried in plain text).
+Domains=~.

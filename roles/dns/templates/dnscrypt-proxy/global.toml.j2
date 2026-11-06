@@ -59,9 +59,11 @@ dnscrypt_ephemeral_keys = true
 tls_disable_session_tickets = true
 
 ## Resolvers used only to fetch the resolver list and look up DoH server names.
+## Never 127.0.0.53: systemd-resolved forwards the server's own lookups to this
+## proxy, so it would be asking itself.
 ## 2.1 dropped the singular fallback_resolver; fallback_resolvers works on
 ## 2.0.45 (Ubuntu 24.04) and 2.1 (Ubuntu 26.04), where bootstrap_resolvers does not.
-fallback_resolvers = ['127.0.0.53:53']
+fallback_resolvers = {{ dns_servers.ipv4 | product([':53']) | map('join') | list | to_json }}
 
 ## Never let dnscrypt-proxy try to use the system DNS settings
 ignore_system_dns = true
