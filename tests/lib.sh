@@ -89,8 +89,14 @@ has_line() { local re=$1; shift; "$@" 2>/dev/null | grep -qE -- "$re"; }
 lacks_line() { ! has_line "$@"; }
 fails() { ! "$@"; }
 
+# handshake_done CLIENT : waits until traffic flows through CLIENT's tunnel. After a server
+# restart, a client whose session is under 2 minutes old (always, with keepalives) keeps
+# using it until 15 s pass without a reply, then makes a new handshake.
 handshake_done() {
-  docker exec "$1" ping -c3 -W3 1.1.1.1 >/dev/null 2>&1
+  local deadline=$((SECONDS + 30))
+  until docker exec "$1" ping -c1 -W2 1.1.1.1 >/dev/null 2>&1; do
+    [ $SECONDS -lt $deadline ] || return 1
+  done
   [ "$(docker exec "$1" wg show wg0 latest-handshakes | cut -f2)" -gt 0 ]
 }
 
@@ -100,6 +106,7 @@ tunnel_checks() {
   dns=$(conf_dns "$conf")
   docker exec "$c2" ping -c2 -W3 1.1.1.1 >/dev/null 2>&1
   check "handshake" handshake_done "$c1"
+  check "client sends keepalives every 25 s" has_line '[[:space:]]25$' docker exec "$c1" wg show wg0 persistent-keepalive
   check "internet through the tunnel" docker exec "$c1" curl -s -m 10 -o /dev/null https://1.1.1.1/cdn-cgi/trace
   if [ -n "$egress" ]; then
     check "egress address is the server's ($egress)" has_line "^ip=${egress//./\\.}\$" docker exec "$c1" curl -s -m 10 https://1.1.1.1/cdn-cgi/trace

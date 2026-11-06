@@ -357,7 +357,7 @@ if [ "$IDLE" = true ]; then
   kv "PersistentKeepalive" "$ka"
   kv "First / second ping after 185 s idle" "${first:-lost} / ${second:-lost} ms"
   if [ "$ka" = 0 ] && awk "BEGIN {exit !(${first:-0} > ${second:-0} * 1.5)}"; then
-    verdict NOTE "After 3 minutes idle, the first packet waited for a new handshake (+$(calc "${first:-0} - ${second:-0}" 0) ms). wireguard_PersistentKeepalive: 25 avoids this, at the cost of a small packet every 25 s from each device (some battery on phones)."
+    verdict NOTE "After 3 minutes idle, the first packet waited for a new handshake (+$(calc "${first:-0} - ${second:-0}" 0) ms). A non-zero wireguard_PersistentKeepalive (25 by default) avoids this, at the cost of a small packet every 25 s from each device (some battery on phones)."
   else
     verdict OK "No handshake delay after idle."
   fi
