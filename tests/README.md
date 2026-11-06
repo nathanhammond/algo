@@ -13,6 +13,12 @@ depend on the personal values in `config.cfg` and never change DNS records.
 Each check prints `PASS` or `FAIL`, and the script exits non-zero if any failed. Logs of every
 deploy are kept in `tests/.work/`.
 
+Each script has its own Docker network, client image and containers (`algo-test-*`,
+`algo-dc-*`, `algo-perf-*`), so `docker.sh` and `dreamcompute.sh` can run at the same time.
+Only one run of each script can go at a time; a second refuses to start. `perf.sh` refuses to
+start while either of the others is running, and they refuse while it is, because they share
+this computer's CPU and network and would skew its measurements.
+
 ## What the end-to-end tests check
 
 - **Deploy:** a fresh server deploys without errors, and its SSH host key is saved before

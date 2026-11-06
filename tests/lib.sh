@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Shared helpers for tests/docker.sh, tests/dreamcompute.sh and tests/perf.sh.
-# Sourced, not run. Callers set: SSH_TARGET (user@host), SSH_PORT, SSH_KEY, KNOWN_HOSTS.
+# Sourced, not run. Callers set SUITE (test, dc or perf) before sourcing, and later
+# SSH_TARGET (user@host), SSH_PORT, SSH_KEY, KNOWN_HOSTS.
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 TESTS="$REPO/tests"
 WORK="$TESTS/.work"
-NET=algotest
-CLIENT_IMAGE=algo-test-client
+# Each suite has its own Docker network, client image and container names (algo-$SUITE-*),
+# so one suite never removes or shares another's containers
+NET=algo-$SUITE
+CLIENT_IMAGE=algo-$SUITE-client
 mkdir -p "$WORK"
 # The deploy runs from the repository's own uv environment
 unset VIRTUAL_ENV
@@ -66,9 +69,34 @@ build_client_image() {
   docker build -q -t "$CLIENT_IMAGE" -f "$TESTS/docker/client.Dockerfile" "$TESTS/docker" >/dev/null
 }
 
+# ensure_network : creates the suite's network, on NET_SUBNET if set (else Docker picks one),
+# with IPv6 on NET_SUBNET6 if set
 ensure_network() {
-  docker network inspect "$NET" >/dev/null 2>&1 || docker network create --subnet 172.30.0.0/24 "$NET" >/dev/null
+  docker network inspect "$NET" >/dev/null 2>&1 ||
+    docker network create ${NET_SUBNET:+--subnet "$NET_SUBNET"} ${NET_SUBNET6:+--ipv6 --subnet "$NET_SUBNET6"} "$NET" >/dev/null
 }
+
+# running SUITE : true while a run of SUITE holds its lock
+running() {
+  local pid
+  pid=$(cat "$WORK/$1.lock" 2>/dev/null) && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+}
+
+# lock [OTHER_SUITE...] : exits if another run of this suite, or of any OTHER_SUITE, is going.
+# Call it before setting the EXIT trap, and call unlock from that trap.
+lock() {
+  local s
+  for s in "$SUITE" "$@"; do
+    if running "$s"; then
+      echo "A tests/$(suite_script "$s") run (PID $(cat "$WORK/$s.lock")) is in progress; wait for it to finish." >&2
+      [ "$s" = "$SUITE" ] || echo "Both use this computer's CPU and network, which would skew the performance figures." >&2
+      exit 2
+    fi
+  done
+  echo $$ >"$WORK/$SUITE.lock"
+}
+unlock() { [ "$(cat "$WORK/$SUITE.lock" 2>/dev/null)" = "$$" ] && rm -f "$WORK/$SUITE.lock"; }
+suite_script() { case $1 in test) echo docker.sh ;; dc) echo dreamcompute.sh ;; perf) echo perf.sh ;; esac; }
 
 # client_up NAME CONF : starts a WireGuard client container using CONF
 client_up() {

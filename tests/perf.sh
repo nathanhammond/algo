@@ -20,6 +20,7 @@
 # Environment: SSH_HOST (default: the server IP), SSH_PORT (default: config.cfg),
 # SSH_KEY (default: configs/algo.pem).
 set -uo pipefail
+SUITE=perf
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
 
@@ -47,7 +48,10 @@ OUT=algo-perf-direct
 DL_BYTES=25000000
 DL_URL="https://speed.cloudflare.com/__down?bytes=$DL_BYTES"
 UP_URL="https://speed.cloudflare.com/__up"
-trap 'client_down $IN $OUT' EXIT
+# The other suites deploy servers and push traffic from this computer, which would skew
+# the measurements, so perf.sh runs alone
+lock test dc
+trap 'unlock; client_down $IN $OUT' EXIT
 
 calc() { awk "BEGIN {printf \"%.${2:-1}f\", $1}"; }
 # stats VALUES... : prints "mean cv%" (coefficient of variation)

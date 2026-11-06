@@ -8,6 +8,7 @@
 # that everything comes back. --keep leaves the containers and configs/172.30.0.10.
 # Docker Desktop's kernel has no AppArmor, so that is only checked by tests/dreamcompute.sh.
 set -uo pipefail
+SUITE="test"
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
 
@@ -23,6 +24,9 @@ done
 
 SERVER=algo-test-server
 SERVER_IP=172.30.0.10
+NET_SUBNET=172.30.0.0/24
+# IPv6 lets the server route clients' IPv6 traffic, so the IPv6 checks run
+NET_SUBNET6=fd00:a160:1::/64
 CONFIGS="$REPO/configs/$SERVER_IP"
 WG="$CONFIGS/wireguard"
 SSH_KEY="$WORK/ssh-key"
@@ -40,7 +44,9 @@ cleanup() {
     docker rm -f "$SERVER" "${CLIENTS[@]}" >/dev/null 2>&1
     rm -rf "$CONFIGS"
   fi
+  unlock
 }
+lock perf
 trap cleanup EXIT
 
 # The container uses Docker's DNS, which needs NAT rules that the VPN's firewall

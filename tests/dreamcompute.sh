@@ -12,6 +12,7 @@
 # uses config.cfg's endpoint_hostname, so a record pointing at the test server is
 # removed with it; that needs CLOUDFLARE_API_TOKEN when endpoint_hostname is set.
 set -uo pipefail
+SUITE=dc
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
 
@@ -68,7 +69,9 @@ cleanup() {
     if server_exists "$NAME"; then echo "FAIL destroy: $NAME still exists"; else echo "PASS $NAME destroyed"; fi
     [ -n "${IP:-}" ] && rm -rf "${REPO:?}/configs/$IP"
   fi
+  unlock
 }
+lock perf
 trap cleanup EXIT
 
 existed=false
