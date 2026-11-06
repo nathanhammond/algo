@@ -148,6 +148,10 @@ tunnel_checks() {
   # "8.8.8.8" shows the query was answered by dnscrypt-proxy (dns_force_dnscrypt)
   check "DNS sent to other resolvers is answered by dnscrypt-proxy" has_line '^192\.0\.2\.10$' docker exec "$c1" dig +short +time=5 @8.8.8.8 nas.example.test
   check "... over TCP too" has_line '^192\.0\.2\.10$' docker exec "$c1" dig +short +tcp +time=5 @8.8.8.8 nas.example.test
+  # Google publishes www.google.com with a 300 s TTL; the second answer comes from
+  # dnscrypt-proxy's cache, which must not keep it longer
+  docker exec "$c1" dig +short +time=5 @"$dns" www.google.com >/dev/null 2>&1
+  check "cached answers keep their TTL (www.google.com, 300 s)" ttl_at_most 300 docker exec "$c1" dig +noall +answer +time=5 @"$dns" www.google.com A
   check "DNS over TCP works" has_line '^[0-9.]+$' docker exec "$c1" dig +short +tcp +time=5 @"$dns" example.com
   # 2.5 KB: too large for UDP, so dig retries over TCP (dnscrypt-proxy drops answers over 4 KB)
   check "answers too large for UDP arrive (TXT cloudflare.com)" has_line 'ANSWER: [1-9]' docker exec "$c1" dig +time=5 @"$dns" TXT cloudflare.com
@@ -159,6 +163,12 @@ tunnel_checks() {
   c2ip=$(docker exec "$c2" sh -c "ip -4 -br addr show wg0 | awk '{print \$3}' | cut -d/ -f1")
   check "client-to-client traffic is blocked ($c2ip)" fails docker exec "$c1" ping -c2 -W2 "$c2ip"
   check "metadata service is blocked" fails docker exec "$c1" curl -s -m 5 http://169.254.169.254/
+}
+
+# ttl_at_most SECONDS COMMAND... : COMMAND prints dig answer lines, all with TTLs of at most SECONDS
+ttl_at_most() {
+  local max=$1 out; shift
+  out=$("$@" 2>/dev/null) && [ -n "$out" ] && awk -v m="$max" '$2 > m {bad = 1} END {exit bad}' <<<"$out"
 }
 
 SERVER_STATE=""

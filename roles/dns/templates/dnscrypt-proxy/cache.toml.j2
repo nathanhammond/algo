@@ -8,14 +8,15 @@ cache = true
 ## Cache size
 cache_size = 4096
 
-## Minimum TTL for cached entries
-cache_min_ttl = 2400
+## Minimum TTL for cached entries. 0 keeps each answer only as long as its TTL
+## says, so changed records are seen when their owners intend.
+cache_min_ttl = 0
 
 ## Maximum TTL for cached entries
 cache_max_ttl = 86400
 
-## Minimum TTL for negatively cached entries
-cache_neg_min_ttl = 60
+## Minimum TTL for negatively cached entries (0: the zone's own negative TTL)
+cache_neg_min_ttl = 0
 
 ## Maximum TTL for negatively cached entries
 cache_neg_max_ttl = 600
