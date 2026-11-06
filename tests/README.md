@@ -6,18 +6,20 @@ depend on the personal values in `config.cfg` and never change DNS records.
 
 | Script | What it tests | Needs |
 |---|---|---|
-| `tests/docker.sh [--ubuntu 26.04\|24.04] [--keep]` | An Ubuntu server in Docker (`provider: local`) | Docker |
+| `tests/docker.sh [--ubuntu 26.04\|24.04\|all] [--keep]` | An Ubuntu server in Docker (`provider: local`); `all` runs both versions at once | Docker |
 | `tests/dreamcompute.sh [--server algo-test-NAME] [--keep] [--with-dns]` | A real DreamCompute server, created and destroyed | Docker, DreamCompute credentials |
 | `tests/perf.sh <server-ip> <client-config> [--name NAME]` | What limits VPN performance on a deployed server | Docker |
 
 Each check prints `PASS` or `FAIL`, and the script exits non-zero if any failed. Logs of every
 deploy are kept in `tests/.work/`.
 
-Each script has its own Docker network, client image and containers (`algo-test-*`,
-`algo-dc-*`, `algo-perf-*`), so `docker.sh` and `dreamcompute.sh` can run at the same time.
-Only one run of each script can go at a time; a second refuses to start. `perf.sh` refuses to
-start while either of the others is running, and they refuse while it is, because they share
-this computer's CPU and network and would skew its measurements.
+Each suite has its own Docker network, client image and containers: `docker.sh` has one per
+Ubuntu version (`algo-test-26-*` and `algo-test-24-*`, each with its own subnet, server
+address and SSH port), then `algo-dc-*` and `algo-perf-*`. So both Docker versions and
+`dreamcompute.sh` can run at the same time. Only one run of each suite can go at a time; a
+second refuses to start. `perf.sh` refuses to start while any of the others is running, and
+they refuse while it is, because they share this computer's CPU and network and would skew
+its measurements.
 
 ## What the end-to-end tests check
 

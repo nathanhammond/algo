@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared helpers for tests/docker.sh, tests/dreamcompute.sh and tests/perf.sh.
-# Sourced, not run. Callers set SUITE (test, dc or perf) before sourcing, and later
+# Sourced, not run. Callers set SUITE (test-26, test-24, dc or perf) before sourcing, and later
 # SSH_TARGET (user@host), SSH_PORT, SSH_KEY, KNOWN_HOSTS.
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -96,7 +96,7 @@ lock() {
   echo $$ >"$WORK/$SUITE.lock"
 }
 unlock() { [ "$(cat "$WORK/$SUITE.lock" 2>/dev/null)" = "$$" ] && rm -f "$WORK/$SUITE.lock"; }
-suite_script() { case $1 in test) echo docker.sh ;; dc) echo dreamcompute.sh ;; perf) echo perf.sh ;; esac; }
+suite_script() { case $1 in test-*) echo "docker.sh --ubuntu ${1#test-}.04" ;; dc) echo dreamcompute.sh ;; perf) echo perf.sh ;; esac; }
 
 # client_up NAME CONF : starts a WireGuard client container using CONF
 client_up() {

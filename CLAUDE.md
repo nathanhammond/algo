@@ -44,7 +44,7 @@ Users are added and removed by re-running `./algo`; there is no separate users p
 uv run ansible-lint && uv run yamllint . && uvx --from shellcheck-py shellcheck -x algo tests/*.sh tests/docker/*.sh
 uv run ansible-playbook main.yml --syntax-check
 uv run ansible-playbook destroy.yml --syntax-check
-tests/docker.sh --ubuntu 26.04 && tests/docker.sh --ubuntu 24.04
+tests/docker.sh --ubuntu all    # both versions at once; output in tests/.work/docker-<version>.out
 ```
 
 There are no unit tests; behavior is tested end to end (see [tests/README.md](tests/README.md)).

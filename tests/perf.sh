@@ -50,7 +50,7 @@ DL_URL="https://speed.cloudflare.com/__down?bytes=$DL_BYTES"
 UP_URL="https://speed.cloudflare.com/__up"
 # The other suites deploy servers and push traffic from this computer, which would skew
 # the measurements, so perf.sh runs alone
-lock test dc
+lock test-26 test-24 dc
 trap 'unlock; client_down $IN $OUT' EXIT
 
 calc() { awk "BEGIN {printf \"%.${2:-1}f\", $1}"; }
